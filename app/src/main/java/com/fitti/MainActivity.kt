@@ -24,7 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.FittiDatabase
+import com.fitti.data.WorkoutSessionRepository
+import com.fitti.domain.CompleteWorkoutSessionUseCase
 import com.fitti.domain.Exercise
+import com.fitti.domain.SaveSetLogUseCase
+import com.fitti.domain.StartWorkoutSessionUseCase
 import com.fitti.ui.MainViewModel
 import com.fitti.ui.MainViewModelFactory
 
@@ -33,11 +37,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val repository = ExerciseRepository(FittiDatabase.create(applicationContext).exerciseDao())
+        val database = FittiDatabase.create(applicationContext)
+        val repository = ExerciseRepository(database.exerciseDao())
+        val workoutRepository = WorkoutSessionRepository(database.workoutSessionDao())
 
         setContent {
             MaterialTheme {
-                val vm: MainViewModel = viewModel(factory = MainViewModelFactory(repository))
+                val vm: MainViewModel = viewModel(
+                    factory = MainViewModelFactory(
+                        repository = repository,
+                        startWorkoutSessionUseCase = StartWorkoutSessionUseCase(workoutRepository),
+                        saveSetLogUseCase = SaveSetLogUseCase(workoutRepository),
+                        completeWorkoutSessionUseCase = CompleteWorkoutSessionUseCase(workoutRepository)
+                    )
+                )
                 val state by vm.uiState.collectAsState()
                 MainScreen(state.exercises)
             }
