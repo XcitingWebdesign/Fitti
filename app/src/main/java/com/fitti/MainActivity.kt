@@ -4,33 +4,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.FittiDatabase
+import com.fitti.data.SettingsRepository
 import com.fitti.data.WorkoutSessionRepository
-import com.fitti.domain.CompleteWorkoutSessionUseCase
-import com.fitti.domain.Exercise
-import com.fitti.domain.SaveSetLogUseCase
-import com.fitti.domain.StartWorkoutSessionUseCase
-import com.fitti.ui.MainViewModel
-import com.fitti.ui.MainViewModelFactory
+import com.fitti.ui.screens.ActiveWorkoutScreen
+import com.fitti.ui.screens.HistoryDetailScreen
+import com.fitti.ui.screens.HomeScreen
+import com.fitti.ui.screens.SettingsScreen
+import com.fitti.ui.theme.FittiTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,56 +25,71 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val database = FittiDatabase.create(applicationContext)
-        val repository = ExerciseRepository(database.exerciseDao())
-        val workoutRepository = WorkoutSessionRepository(database.workoutSessionDao())
+        val exerciseRepo = ExerciseRepository(database.exerciseDao())
+        val workoutRepo = WorkoutSessionRepository(database.workoutSessionDao())
+        val settingsRepo = SettingsRepository(applicationContext)
+        val weightLogDao = database.weightLogDao()
 
         setContent {
-            MaterialTheme {
-                val vm: MainViewModel = viewModel(
-                    factory = MainViewModelFactory(
-                        repository = repository,
-                        startWorkoutSessionUseCase = StartWorkoutSessionUseCase(workoutRepository),
-                        saveSetLogUseCase = SaveSetLogUseCase(workoutRepository),
-                        completeWorkoutSessionUseCase = CompleteWorkoutSessionUseCase(workoutRepository)
-                    )
-                )
-                val state by vm.uiState.collectAsState()
-                MainScreen(state.exercises)
-            }
-        }
-    }
-}
+            FittiTheme {
+                val navController = rememberNavController()
 
-@Composable
-private fun MainScreen(exercises: List<Exercise>) {
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Initialer Geräte-Stand",
-                style = MaterialTheme.typography.headlineSmall
-            )
-            Text(
-                text = "Marke: Nautilus • Datum: 22.02.2026",
-                style = MaterialTheme.typography.bodyMedium
-            )
+                NavHost(navController = navController, startDestination = "home") {
+                    composable("home") {
+                        HomeScreen(
+                            exerciseRepo = exerciseRepo,
+                            workoutRepo = workoutRepo,
+                            settingsRepo = settingsRepo,
+                            weightLogDao = weightLogDao,
+                            onStartWorkout = { sessionId ->
+                                navController.navigate("workout/$sessionId") {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onOpenHistory = { sessionId ->
+                                navController.navigate("history/$sessionId")
+                            },
+                            onOpenSettings = {
+                                navController.navigate("settings")
+                            }
+                        )
+                    }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(exercises) { exercise ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(text = exercise.code, style = MaterialTheme.typography.titleMedium)
-                            Text(text = "Gewicht: ${exercise.currentWeight}")
-                        }
+                    composable(
+                        route = "workout/{sessionId}",
+                        arguments = listOf(navArgument("sessionId") { type = NavType.LongType })
+                    ) { backStackEntry ->
+                        val sessionId = backStackEntry.arguments?.getLong("sessionId") ?: return@composable
+                        ActiveWorkoutScreen(
+                            sessionId = sessionId,
+                            workoutRepo = workoutRepo,
+                            exerciseRepo = exerciseRepo,
+                            application = application,
+                            onWorkoutComplete = {
+                                navController.popBackStack("home", inclusive = false)
+                            }
+                        )
+                    }
+
+                    composable(
+                        route = "history/{sessionId}",
+                        arguments = listOf(navArgument("sessionId") { type = NavType.LongType })
+                    ) { backStackEntry ->
+                        val sessionId = backStackEntry.arguments?.getLong("sessionId") ?: return@composable
+                        HistoryDetailScreen(
+                            sessionId = sessionId,
+                            workoutRepo = workoutRepo,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable("settings") {
+                        SettingsScreen(
+                            settingsRepo = settingsRepo,
+                            weightLogDao = weightLogDao,
+                            exerciseRepo = exerciseRepo,
+                            onBack = { navController.popBackStack() }
+                        )
                     }
                 }
             }

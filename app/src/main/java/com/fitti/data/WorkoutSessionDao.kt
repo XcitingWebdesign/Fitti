@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WorkoutSessionDao {
@@ -18,12 +19,11 @@ interface WorkoutSessionDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSetLog(setLog: SetLogEntity): Long
 
-    @Query("SELECT * FROM exercises ORDER BY code ASC")
+    @Query("SELECT * FROM exercises ORDER BY sortOrder ASC")
     suspend fun getAllActiveExercises(): List<ExerciseEntity>
 
     @Query("SELECT * FROM workout_sessions WHERE id = :sessionId")
     suspend fun getSessionById(sessionId: Long): WorkoutSessionEntity?
-
 
     @Query("SELECT * FROM session_exercises WHERE sessionId = :sessionId ORDER BY id ASC")
     suspend fun getSessionExercises(sessionId: Long): List<SessionExerciseEntity>
@@ -40,12 +40,28 @@ interface WorkoutSessionDao {
     @Query("UPDATE workout_sessions SET status = :newStatus, completedAt = :completedAt WHERE id = :sessionId AND status = :expectedStatus")
     suspend fun updateSessionStatus(sessionId: Long, expectedStatus: String, newStatus: String, completedAt: String): Int
 
+    @Query("SELECT * FROM workout_sessions WHERE status = 'STARTED' ORDER BY id DESC LIMIT 1")
+    suspend fun getActiveSession(): WorkoutSessionEntity?
+
+    @Query("SELECT * FROM workout_sessions WHERE status = 'COMPLETED' ORDER BY completedAt DESC")
+    fun observeCompletedSessions(): Flow<List<WorkoutSessionEntity>>
+
     @Transaction
     @Query("SELECT * FROM workout_sessions WHERE id = :sessionId")
     suspend fun getSessionHistory(sessionId: Long): WorkoutSessionHistory?
 
     @Transaction
-    suspend fun startSession(startedAt: String): Long {
+    @Query("SELECT * FROM workout_sessions WHERE status = 'COMPLETED' ORDER BY completedAt DESC")
+    fun observeSessionHistories(): Flow<List<WorkoutSessionHistory>>
+
+    @Transaction
+    suspend fun startSession(
+        startedAt: String,
+        repsMin: Int,
+        repsMax: Int,
+        sets: Int,
+        restSeconds: Int
+    ): Long {
         val sessionId = insertSession(
             WorkoutSessionEntity(
                 startedAt = startedAt,
@@ -58,11 +74,14 @@ interface WorkoutSessionDao {
                 sessionId = sessionId,
                 exerciseId = exercise.id,
                 exerciseCode = exercise.code,
+                exerciseDisplayName = exercise.displayName,
+                exerciseMuscleGroup = exercise.muscleGroup,
                 targetWeight = exercise.currentWeight,
-                targetReps = DEFAULT_TARGET_REPS,
-                targetSets = DEFAULT_TARGET_SETS,
-                plannedRestSeconds = DEFAULT_REST_SECONDS,
-                progressionStepKg = DEFAULT_PROGRESSION_STEP_KG
+                targetRepsMin = repsMin,
+                targetReps = repsMax,
+                targetSets = sets,
+                plannedRestSeconds = restSeconds,
+                progressionStepKg = exercise.progressionStepKg
             )
         }
 
@@ -109,12 +128,5 @@ interface WorkoutSessionDao {
             newStatus = WorkoutSessionEntity.STATUS_COMPLETED,
             completedAt = completedAt
         ) == 1
-    }
-
-    companion object {
-        private const val DEFAULT_TARGET_REPS = 10
-        private const val DEFAULT_TARGET_SETS = 3
-        private const val DEFAULT_REST_SECONDS = 90
-        private const val DEFAULT_PROGRESSION_STEP_KG = 2.5
     }
 }

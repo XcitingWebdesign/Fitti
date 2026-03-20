@@ -9,7 +9,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class WorkoutSessionDaoTest {
 
     private lateinit var database: FittiDatabase
@@ -32,6 +35,16 @@ class WorkoutSessionDaoTest {
         database.close()
     }
 
+    private suspend fun startTestSession(startedAt: String): Long {
+        return workoutSessionDao.startSession(
+            startedAt = startedAt,
+            repsMin = 8,
+            repsMax = 12,
+            sets = 2,
+            restSeconds = 90
+        )
+    }
+
     @Test
     fun startSession_createsExactlyOneSnapshotPerActiveExercise() = runBlocking {
         exerciseDao.insertAll(
@@ -41,7 +54,7 @@ class WorkoutSessionDaoTest {
             )
         )
 
-        val sessionId = workoutSessionDao.startSession("2026-02-26T10:00:00")
+        val sessionId = startTestSession("2026-02-26T10:00:00")
 
         val snapshots = workoutSessionDao.getSessionExercises(sessionId)
         assertEquals(2, snapshots.size)
@@ -55,7 +68,7 @@ class WorkoutSessionDaoTest {
                 ExerciseEntity(code = "B1", brand = "Nautilus", currentWeight = 40.0, weightUnit = "kg", recordedOn = "01.01.2026")
             )
         )
-        val sessionId = workoutSessionDao.startSession("2026-02-26T11:00:00")
+        val sessionId = startTestSession("2026-02-26T11:00:00")
         val sessionExerciseId = workoutSessionDao.getSessionExercises(sessionId).first().id
 
         workoutSessionDao.saveSet(
@@ -91,7 +104,7 @@ class WorkoutSessionDaoTest {
             )
         )
 
-        val sessionId = workoutSessionDao.startSession("2026-02-26T12:00:00")
+        val sessionId = startTestSession("2026-02-26T12:00:00")
         val completed = workoutSessionDao.completeSession(sessionId, "2026-02-26T12:30:00")
 
         assertFalse(completed)

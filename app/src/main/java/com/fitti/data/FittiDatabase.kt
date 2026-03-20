@@ -12,14 +12,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ExerciseEntity::class,
         WorkoutSessionEntity::class,
         SessionExerciseEntity::class,
-        SetLogEntity::class
+        SetLogEntity::class,
+        WeightLogEntity::class
     ],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 abstract class FittiDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun workoutSessionDao(): WorkoutSessionDao
+    abstract fun weightLogDao(): WeightLogDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -71,9 +73,60 @@ abstract class FittiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add displayName and muscleGroup to exercises
+                db.execSQL("ALTER TABLE exercises ADD COLUMN displayName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN muscleGroup TEXT NOT NULL DEFAULT ''")
+
+                // Backfill seed data
+                db.execSQL("UPDATE exercises SET displayName = 'Chest Press', muscleGroup = 'CHEST' WHERE code = 'B2'")
+                db.execSQL("UPDATE exercises SET displayName = 'Leg Press', muscleGroup = 'LEGS' WHERE code = 'B6'")
+                db.execSQL("UPDATE exercises SET displayName = 'Seated Row', muscleGroup = 'BACK' WHERE code = 'C2'")
+                db.execSQL("UPDATE exercises SET displayName = 'Butterfly', muscleGroup = 'CHEST' WHERE code = 'C6'")
+                db.execSQL("UPDATE exercises SET displayName = 'Shoulder Press', muscleGroup = 'SHOULDERS' WHERE code = 'D3'")
+                db.execSQL("UPDATE exercises SET displayName = 'Leg Extension', muscleGroup = 'LEGS' WHERE code = 'D4'")
+                db.execSQL("UPDATE exercises SET displayName = 'Lat Pulldown', muscleGroup = 'BACK' WHERE code = 'F3'")
+
+                // Add snapshot fields to session_exercises
+                db.execSQL("ALTER TABLE session_exercises ADD COLUMN exerciseDisplayName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE session_exercises ADD COLUMN exerciseMuscleGroup TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE session_exercises ADD COLUMN targetRepsMin INTEGER NOT NULL DEFAULT 8")
+
+                // Create weight_logs table
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `weight_logs` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `weightKg` REAL NOT NULL,
+                        `loggedAt` TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Per-exercise progression step
+                db.execSQL("ALTER TABLE exercises ADD COLUMN progressionStepKg REAL NOT NULL DEFAULT 2.5")
+                // Custom exercise order
+                db.execSQL("ALTER TABLE exercises ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+
+                // Backfill sortOrder based on current code order
+                db.execSQL("UPDATE exercises SET sortOrder = 0 WHERE code = 'B2'")
+                db.execSQL("UPDATE exercises SET sortOrder = 1 WHERE code = 'B6'")
+                db.execSQL("UPDATE exercises SET sortOrder = 2 WHERE code = 'C2'")
+                db.execSQL("UPDATE exercises SET sortOrder = 3 WHERE code = 'C6'")
+                db.execSQL("UPDATE exercises SET sortOrder = 4 WHERE code = 'D3'")
+                db.execSQL("UPDATE exercises SET sortOrder = 5 WHERE code = 'D4'")
+                db.execSQL("UPDATE exercises SET sortOrder = 6 WHERE code = 'F3'")
+            }
+        }
+
         fun create(context: Context): FittiDatabase =
             Room.databaseBuilder(context, FittiDatabase::class.java, "fitti.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

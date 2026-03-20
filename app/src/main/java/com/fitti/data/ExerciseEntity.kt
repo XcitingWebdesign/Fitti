@@ -8,7 +8,11 @@ data class ExerciseEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val code: String,
     val brand: String,
+    val displayName: String = "",
+    val muscleGroup: String = "",
     val currentWeight: Double,
     val weightUnit: String,
-    val recordedOn: String
+    val recordedOn: String,
+    val progressionStepKg: Double = 2.5,
+    val sortOrder: Int = 0
 )

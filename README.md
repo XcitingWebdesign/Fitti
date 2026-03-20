@@ -1,78 +1,77 @@
-# Fitti – Private Android-Logbuch-App fürs Fitnesscenter
+# Fitti – Private Android-Logbuch-App f\u00fcrs Fitnesscenter
 
 ## Ziel der App
-**Fitti** ist eine bewusst einfache, private Android-App für dein eigenes Training im Fitnessstudio.
-Der Fokus liegt auf einem zuverlässigen Trainings-Logbuch statt auf Social- oder Cloud-Funktionen.
+**Fitti** ist eine bewusst einfache, private Android-App f\u00fcr dein eigenes Training im Fitnessstudio.
+Der Fokus liegt auf einem zuverl\u00e4ssigen Trainings-Logbuch statt auf Social- oder Cloud-Funktionen.
 
-Die App soll dir helfen, pro Gerät strukturiert zu trainieren, Fortschritt sauber festzuhalten und beim nächsten Training direkt mit der passenden Steigerung weiterzumachen.
+Die App dient langfristig als Datengrundlage f\u00fcr einen LLM-basierten Personal Trainer.
 
-## Kernfunktionen (MVP)
-1. **Trainingsplan verwalten**
-   - Geräte/Übungen anlegen.
-   - Pro Gerät Zielwerte hinterlegen: Gewicht, Wiederholungen, Sätze.
-2. **Trainingseinheit protokollieren**
-   - Tatsächlich absolvierte Werte je Satz erfassen.
-   - Dokumentieren, was geplant war vs. was gemacht wurde.
-3. **Automatische Progression**
-   - Wenn Ziel in allen Sätzen erreicht wurde, wird für die nächste Einheit eine definierte Steigerung vorgeschlagen.
-4. **Pausen-/Intervalltimer pro Gerät**
-   - Unterschiedliche Pausenlängen je Übung/Gerät einstellbar.
-5. **Profil / Stammdaten**
-   - Vorname, Nachname, Körpergröße, aktuelles Gewicht.
-6. **Logbuch & Historie**
-   - Nachvollziehen: wann trainiert, wie oft trainiert, welche Leistung.
+## Status: MVP implementiert
 
-## Erweiterung (Phase 2)
-- **Gamification für 3x Training pro Woche**
-  - Wochenziel-Tracking (z. B. 3/3 Einheiten).
-  - Motivation über Streaks, einfache Badges oder Fortschrittsbalken.
+- \u2705 4 Screens: Home, Active Workout, History Detail, Settings
+- \u2705 7 Nautilus-Maschinen mit Muskelgruppen (Brust, R\u00fccken, Beine, Schultern)
+- \u2705 Kartenspiel-Metapher: eine \u00dcbung nach der anderen
+- \u2705 One-Tap Set-Logging mit Rest-Timer (Sound + Vibration)
+- \u2705 Manuelle Progressionsentscheidung nach allen S\u00e4tzen
+- \u2705 \u00dcberspringen-Funktion f\u00fcr besetzte Ger\u00e4te
+- \u2705 Muskelgruppen-Frische-Indikator auf Home Screen
+- \u2705 Periodische K\u00f6rpergewichts-Abfrage
+- \u2705 Einstellungen: Rep-Range, S\u00e4tze, Pause, Progression, Ziel, Gr\u00f6\u00dfe
+- \u2705 Dark Theme, Portrait-Lock, Screen-Always-On
+- \u2705 Room-Datenbank mit Migrationen (v1 \u2192 v2 \u2192 v3)
 
-## Design-Prinzip
-- Sehr schlichtes, graustufiges UI.
-- Klare Bedienung mit wenigen Klicks.
-- Mobile-first für Pixel 9a (Android), später optional für weitere Geräte.
+## Kernfunktionen
 
-## Technologievorschlag
-### Empfohlen (für Android nativ)
-- **Sprache:** Kotlin
-- **UI:** Jetpack Compose
-- **Architektur:** MVVM + Clean-ish Layering (UI / Domain / Data)
-- **Datenbank:** Room (lokal auf dem Gerät)
-- **Asynchronität:** Kotlin Coroutines + Flow
-- **Dependency Injection:** Hilt (optional für MVP, spätestens bei wachsender App)
+### Training starten
+App \u00f6ffnen \u2192 "Training starten" \u2192 erste \u00dcbung erscheint mit Gewicht, Rep-Range (8-12) und S\u00e4tzen (2).
 
-### Warum diese Wahl?
-- Kotlin + Compose sind aktueller Android-Standard.
-- Lokale Datenhaltung mit Room passt perfekt zu „private App ohne Cloud-Zwang“.
-- Gute Wartbarkeit bei gleichzeitig einfacher Codebasis.
+### Satz loggen
+"Satz geschafft" antippen \u2192 Timer startet automatisch (60s) \u2192 Sound + Vibration wenn abgelaufen.
 
-## Mögliche Alternativen
-- **Flutter (Dart):** sinnvoll, wenn später iOS geplant ist.
-- **React Native (TypeScript):** sinnvoll, wenn Web-/JS-Erfahrung dominiert.
+### Progression
+Nach allen S\u00e4tzen: "Mehr Gewicht n\u00e4chstes Mal?" \u2192 Ja/Nein. Bei Ja wird das Gewicht f\u00fcr n\u00e4chstes Mal erh\u00f6ht.
 
-Für dein aktuelles Ziel (private Android-App, schnell und robust) bleibt **Kotlin + Compose** die beste Option.
+### \u00dcberspringen
+Ger\u00e4t besetzt? "\u00dcberspringen" \u2192 kommt sp\u00e4ter im Zirkel wieder dran.
+
+### Historie
+Vergangene Trainings einsehen: Datum, Dauer, Soll vs. Ist pro \u00dcbung.
+
+## Tech-Stack
+- **Kotlin** + **Jetpack Compose** (Material3 Dark Theme)
+- **Room** (SQLite, offline-first, lokal)
+- **MVVM** + Use Cases
+- **Navigation Compose** (4 Routes)
+- **Coroutines + Flow**
+- Target: Android 8+ (API 26), optimiert f\u00fcr Pixel 9a
+
+## Build
+
+```bash
+# JAVA_HOME auf Android Studio JBR setzen
+export JAVA_HOME="/pfad/zu/Android Studio/jbr"
+
+# APK bauen
+./gradlew assembleDebug
+
+# Tests laufen lassen
+./gradlew test
+
+# APK: app/build/outputs/apk/debug/app-debug.apk
+```
+
+Oder: Projekt in Android Studio \u00f6ffnen \u2192 Run auf verbundenem Ger\u00e4t.
 
 ## Nicht-Ziele im MVP
-- Kein Login/Account-System.
-- Keine Cloud-Synchronisierung.
-- Keine Social Features.
-- Keine Smartwatch-Integration.
+- Kein Login/Account-System
+- Keine Cloud-Synchronisierung
+- Keine Social Features
+- Keine Smartwatch-Integration
 
-## Projektstatus
-- ✅ Produktziel und Scope dokumentiert.
-- ✅ Entwicklungsleitfaden für die App im Repository angelegt (`Entwicklungsleitfaden.md`).
-- ⏳ Nächster Schritt: Fachliche Details finalisieren und Datenmodell/Screen-Flows festzurren.
-
-## Offene Fragen (für die nächste Runde)
-1. **Progressionsregel:**
-   - Soll bei Erfolg automatisch z. B. `+2,5 kg` erhöht werden, oder pro Gerät individuell (z. B. Beine +5 kg, Arme +1 kg)?
-2. **Trainingsplan-Struktur:**
-   - Ein fester Ganzkörper-Plan oder mehrere Tage (Push/Pull/Legs etc.)?
-3. **Timer-Verhalten:**
-   - Auto-Start nach Satzabschluss oder manuell per Start-Button?
-4. **Historie-Ansicht:**
-   - Reicht eine einfache Liste pro Datum, oder möchtest du Diagramme (z. B. Gewichtsverlauf)?
-5. **Gamification in Phase 2:**
-   - Eher minimal (Streak + Wochenziel) oder mehr (Punkte, Levels, Belohnungen)?
-
-Wenn du diese Punkte beantwortest, können wir im nächsten Schritt sofort die App-Struktur und die ersten Screens umsetzen.
+## Geplante Verbesserungen
+- Wiederholungen pro Satz loggen (8-12 Auswahl)
+- Gewichtssteigerung pro Maschine individuell
+- Reihenfolge im Zirkel anpassbar
+- Export-Funktion (JSON) f\u00fcr LLM-Trainer
+- K\u00f6rpergewichts-Verlaufsgraph
+- Custom \u00dcbungen hinzuf\u00fcgen
