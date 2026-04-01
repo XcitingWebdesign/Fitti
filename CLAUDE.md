@@ -57,6 +57,8 @@ com.fitti/
 | D4 | Leg Extension | LEGS |
 | F3 | Lat Pulldown | BACK |
 
+Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme)
+
 ## Umgesetzte Features
 - Reps pro Satz loggen (8-12 Auswahl statt nur geschafft/nicht)
 - Gewichtssteigerung pro Maschine individuell (ExerciseEntity.progressionStepKg)
@@ -67,5 +69,5 @@ com.fitti/
 
 ## Bekannte TODOs
 - Geraete hinzufuegen/entfernen (UI + DAO)
-- Fehlende Muskelgruppen: ARMS (Bizeps/Trizeps)
+- Muskelgruppe ARMS ist unterstuetzt, Geraete muessen noch hinzugefuegt werden
 - Export/Import fuer Geraetewechsel

@@ -89,9 +89,10 @@ Alle Kernfunktionen m\u00fcssen ohne Internet funktionieren.
 | D4 | Leg Extension | Beine |
 | F3 | Lat Pulldown | R\u00fccken |
 
+Unterst\u00fctzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme)
+
 ### Geplant
 - Ger\u00e4te hinzuf\u00fcgen/entfernen (z.B. Bizeps-Curl, Trizeps, Adduktoren)
-- Fehlende Muskelgruppen: ARMS (Bizeps/Trizeps)
 - Export/Import f\u00fcr Ger\u00e4tewechsel
 
 ---
