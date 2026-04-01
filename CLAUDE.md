@@ -71,3 +71,4 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme)
 - Geraete hinzufuegen/entfernen (UI + DAO)
 - Muskelgruppe ARMS ist unterstuetzt, Geraete muessen noch hinzugefuegt werden
 - Export/Import fuer Geraetewechsel
+- GitHub Actions CI/CD: APK automatisch bauen, als Artifact/Release bereitstellen (Ziel: direkt aufs Handy installierbar)
