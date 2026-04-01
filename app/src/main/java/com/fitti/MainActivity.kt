@@ -64,6 +64,8 @@ class MainActivity : ComponentActivity() {
                             sessionId = sessionId,
                             workoutRepo = workoutRepo,
                             exerciseRepo = exerciseRepo,
+                            settingsRepo = settingsRepo,
+                            weightLogDao = weightLogDao,
                             application = application,
                             onWorkoutComplete = {
                                 navController.popBackStack("home", inclusive = false)
@@ -79,6 +81,8 @@ class MainActivity : ComponentActivity() {
                         HistoryDetailScreen(
                             sessionId = sessionId,
                             workoutRepo = workoutRepo,
+                            settingsRepo = settingsRepo,
+                            weightLogDao = weightLogDao,
                             onBack = { navController.popBackStack() }
                         )
                     }
