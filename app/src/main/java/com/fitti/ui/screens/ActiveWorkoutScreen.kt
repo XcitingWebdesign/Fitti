@@ -178,6 +178,13 @@ private fun ExerciseContent(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
+                    text = exercise.exerciseCode,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
                     text = muscleGroupLabels[exercise.exerciseMuscleGroup] ?: exercise.exerciseMuscleGroup,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
