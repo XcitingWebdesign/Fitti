@@ -29,6 +29,7 @@ data class HomeUiState(
     val showWeightDialog: Boolean = false,
     val lastWeightKg: Double? = null,
     val goal: String = "",
+    val weightLogs: List<WeightLogEntity> = emptyList(),
     val isLoading: Boolean = true
 )
 
@@ -69,6 +70,11 @@ class HomeViewModel(
         viewModelScope.launch {
             val active = workoutRepo.getActiveSession()
             _uiState.update { it.copy(activeSessionId = active?.id) }
+        }
+
+        viewModelScope.launch {
+            val logs = weightLogDao.getAll()
+            _uiState.update { it.copy(weightLogs = logs) }
         }
     }
 

@@ -27,6 +27,20 @@ class ExerciseRepository(
         dao.updateSortOrder(exerciseId, sortOrder)
     }
 
+    suspend fun addExercise(entity: ExerciseEntity): Long =
+        dao.insert(entity)
+
+    suspend fun deleteExercise(exerciseId: Long) =
+        dao.deleteById(exerciseId)
+
+    suspend fun getAllEntities(): List<ExerciseEntity> =
+        dao.getAll()
+
+    suspend fun replaceAll(entities: List<ExerciseEntity>) {
+        dao.deleteAll()
+        dao.insertAll(entities)
+    }
+
     suspend fun ensureSeeded() {
         if (dao.count() > 0) return
         dao.insertAll(
