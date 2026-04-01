@@ -28,6 +28,7 @@ data class HomeUiState(
     val muscleGroupFreshness: Map<String, MuscleGroupStatus> = emptyMap(),
     val showWeightDialog: Boolean = false,
     val lastWeightKg: Double? = null,
+    val goal: String = "",
     val isLoading: Boolean = true
 )
 
@@ -48,6 +49,8 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch { exerciseRepo.ensureSeeded() }
+
+        _uiState.update { it.copy(goal = settingsRepo.goal) }
 
         viewModelScope.launch {
             exerciseRepo.observeExercises().collect { exercises ->
