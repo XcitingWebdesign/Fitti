@@ -11,8 +11,14 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises ORDER BY sortOrder ASC")
     fun observeAll(): Flow<List<ExerciseEntity>>
 
+    @Query("SELECT * FROM exercises ORDER BY sortOrder ASC")
+    suspend fun getAll(): List<ExerciseEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(items: List<ExerciseEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(item: ExerciseEntity): Long
 
     @Query("SELECT COUNT(*) FROM exercises")
     suspend fun count(): Int
@@ -28,4 +34,10 @@ interface ExerciseDao {
 
     @Query("UPDATE exercises SET sortOrder = :sortOrder WHERE id = :exerciseId")
     suspend fun updateSortOrder(exerciseId: Long, sortOrder: Int)
+
+    @Query("DELETE FROM exercises WHERE id = :exerciseId")
+    suspend fun deleteById(exerciseId: Long)
+
+    @Query("DELETE FROM exercises")
+    suspend fun deleteAll()
 }

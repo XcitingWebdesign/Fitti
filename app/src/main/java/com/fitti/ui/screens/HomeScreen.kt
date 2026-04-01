@@ -60,6 +60,7 @@ import com.fitti.ui.HomeViewModel
 import com.fitti.ui.HomeViewModelFactory
 import com.fitti.ui.MuscleGroupStatus
 
+import com.fitti.ui.common.WeightChart
 import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.muscleGroupLabels
 
@@ -183,6 +184,22 @@ private fun HomeScreenContent(
                             )
                         }
                     }
+                }
+            }
+
+            // Weight Chart
+            if (state.weightLogs.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "K\u00f6rpergewicht",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    WeightChart(
+                        logs = state.weightLogs,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 

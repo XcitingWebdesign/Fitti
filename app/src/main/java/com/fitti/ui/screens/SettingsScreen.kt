@@ -1,5 +1,10 @@
 package com.fitti.ui.screens
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,10 +19,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,20 +41,28 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.fitti.data.ExerciseEntity
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.SettingsRepository
 import com.fitti.data.WeightLogDao
 import com.fitti.data.WeightLogEntity
 import com.fitti.domain.Exercise
+import com.fitti.ui.common.muscleGroupLabels
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val allMuscleGroups = listOf("CHEST", "BACK", "LEGS", "SHOULDERS", "ARMS")
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settingsRepo: SettingsRepository,
@@ -52,6 +71,7 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var goal by remember { mutableStateOf(settingsRepo.goal) }
     var apiKey by remember { mutableStateOf(settingsRepo.claudeApiKey) }
@@ -64,8 +84,36 @@ fun SettingsScreen(
     var progressionStep by remember { mutableStateOf(settingsRepo.progressionStepKg.toString()) }
     var lastWeightInfo by remember { mutableStateOf("") }
     var exercises by remember { mutableStateOf(emptyList<Exercise>()) }
-    // Per-exercise progression steps: exerciseId -> step text
     var exerciseSteps by remember { mutableStateOf(emptyMap<Long, String>()) }
+
+    // Add exercise dialog state
+    var showAddDialog by remember { mutableStateOf(false) }
+    // Delete exercise confirmation state
+    var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
+    // Import status message
+    var importMessage by remember { mutableStateOf("") }
+
+    // File picker for import
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val json = context.contentResolver.openInputStream(uri)
+                    ?.bufferedReader()?.use { it.readText() } ?: return@launch
+                val imported = parseExercisesJson(json)
+                if (imported.isNotEmpty()) {
+                    exerciseRepo.replaceAll(imported)
+                    importMessage = "${imported.size} Ger\u00e4te importiert"
+                } else {
+                    importMessage = "Keine Ger\u00e4te in Datei gefunden"
+                }
+            } catch (e: Exception) {
+                importMessage = "Import fehlgeschlagen: ${e.message}"
+            }
+        }
+    }
 
     // Load last weight and exercises
     var loaded by remember { mutableStateOf(false) }
@@ -250,12 +298,24 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "\u00dcbungen (Reihenfolge & Steigerung)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "\u00dcbungen (Reihenfolge & Steigerung)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    TextButton(onClick = { showAddDialog = true }) {
+                        Text(
+                            "+ Ger\u00e4t",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             items(exercises.size) { index ->
@@ -263,7 +323,7 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // Reorder buttons
                     Column {
@@ -309,7 +369,7 @@ fun SettingsScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = exercise.code,
+                            text = "${exercise.code} \u2022 ${muscleGroupLabels[exercise.muscleGroup] ?: exercise.muscleGroup}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -321,8 +381,68 @@ fun SettingsScreen(
                         onValueChange = { exerciseSteps = exerciseSteps + (exercise.id to it) },
                         label = { Text("kg") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.width(80.dp),
+                        modifier = Modifier.width(72.dp),
                         singleLine = true
+                    )
+
+                    // Delete button
+                    TextButton(
+                        onClick = { exerciseToDelete = exercise },
+                        modifier = Modifier.size(36.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            "\u2715",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+
+            // Data section (Export/Import)
+            item {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Daten",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val entities = exerciseRepo.getAllEntities()
+                                val json = exportExercisesJson(entities)
+                                shareText(context, json, "fitti_geraete.json")
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Ger\u00e4te exportieren")
+                    }
+                    OutlinedButton(
+                        onClick = { importLauncher.launch("application/json") },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Ger\u00e4te importieren")
+                    }
+                }
+                if (importMessage.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = importMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -357,7 +477,6 @@ fun SettingsScreen(
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = {
-                        // Validate training settings
                         val parsedRepsMin = repsMin.toIntOrNull()?.coerceIn(1, 50) ?: 8
                         val parsedRepsMax = repsMax.toIntOrNull()?.coerceIn(1, 50) ?: 12
                         val validRepsMin = minOf(parsedRepsMin, parsedRepsMax)
@@ -366,12 +485,10 @@ fun SettingsScreen(
                         val validRest = restSeconds.toIntOrNull()?.coerceIn(10, 600) ?: 90
                         val validStep = progressionStep.replace(",", ".").toDoubleOrNull()?.coerceIn(0.5, 20.0) ?: 2.5
 
-                        // Save profile
                         settingsRepo.goal = goal
                         settingsRepo.heightCm = heightCm.toIntOrNull()?.coerceIn(0, 300) ?: 0
                         settingsRepo.claudeApiKey = apiKey.trim()
 
-                        // Save weight if changed
                         val weight = weightKg.replace(",", ".").toDoubleOrNull()
                         if (weight != null && weight in 20.0..300.0) {
                             scope.launch {
@@ -385,14 +502,12 @@ fun SettingsScreen(
                             }
                         }
 
-                        // Save validated training settings
                         settingsRepo.repsMin = validRepsMin
                         settingsRepo.repsMax = validRepsMax
                         settingsRepo.sets = validSets
                         settingsRepo.restSeconds = validRest
                         settingsRepo.progressionStepKg = validStep
 
-                        // Save per-exercise settings (sortOrder + progressionStep)
                         scope.launch {
                             exercises.forEachIndexed { idx, ex ->
                                 exerciseRepo.updateSortOrder(ex.id, idx)
@@ -422,4 +537,253 @@ fun SettingsScreen(
             }
         }
     }
+
+    // Add Exercise Dialog
+    if (showAddDialog) {
+        AddExerciseDialog(
+            defaultProgressionStep = settingsRepo.progressionStepKg,
+            onDismiss = { showAddDialog = false },
+            onAdd = { entity ->
+                scope.launch {
+                    val maxSort = exercises.maxOfOrNull { it.sortOrder } ?: -1
+                    exerciseRepo.addExercise(entity.copy(sortOrder = maxSort + 1))
+                }
+                showAddDialog = false
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    if (exerciseToDelete != null) {
+        val ex = exerciseToDelete!!
+        AlertDialog(
+            onDismissRequest = { exerciseToDelete = null },
+            title = { Text("Ger\u00e4t entfernen") },
+            text = {
+                Text("\"${ex.displayName.ifEmpty { ex.code }}\" wirklich entfernen? Bestehende Trainingshistorie bleibt erhalten.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch { exerciseRepo.deleteExercise(ex.id) }
+                        exerciseToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Entfernen")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { exerciseToDelete = null }) {
+                    Text("Abbrechen")
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddExerciseDialog(
+    defaultProgressionStep: Double,
+    onDismiss: () -> Unit,
+    onAdd: (ExerciseEntity) -> Unit
+) {
+    var code by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var selectedGroup by remember { mutableStateOf("CHEST") }
+    var weight by remember { mutableStateOf("") }
+    var weightUnit by remember { mutableStateOf("kg") }
+    var step by remember { mutableStateOf(defaultProgressionStep.toString()) }
+    var groupExpanded by remember { mutableStateOf(false) }
+    var unitExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ger\u00e4t hinzuf\u00fcgen") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    label = { Text("Ger\u00e4te-Code (z.B. A1)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text("Name (z.B. Bicep Curl)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Muscle group dropdown
+                ExposedDropdownMenuBox(
+                    expanded = groupExpanded,
+                    onExpandedChange = { groupExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = muscleGroupLabels[selectedGroup] ?: selectedGroup,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Muskelgruppe") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = groupExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = groupExpanded,
+                        onDismissRequest = { groupExpanded = false }
+                    ) {
+                        allMuscleGroups.forEach { group ->
+                            DropdownMenuItem(
+                                text = { Text(muscleGroupLabels[group] ?: group) },
+                                onClick = {
+                                    selectedGroup = group
+                                    groupExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = weight,
+                        onValueChange = { weight = it },
+                        label = { Text("Gewicht") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+
+                    // Unit dropdown
+                    ExposedDropdownMenuBox(
+                        expanded = unitExpanded,
+                        onExpandedChange = { unitExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = weightUnit,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Einheit") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
+                            modifier = Modifier.width(100.dp).menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = unitExpanded,
+                            onDismissRequest = { unitExpanded = false }
+                        ) {
+                            listOf("kg", "lb").forEach { unit ->
+                                DropdownMenuItem(
+                                    text = { Text(unit) },
+                                    onClick = {
+                                        weightUnit = unit
+                                        unitExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = step,
+                    onValueChange = { step = it },
+                    label = { Text("Steigerung (kg)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val parsedWeight = weight.replace(",", ".").toDoubleOrNull() ?: return@Button
+                    val parsedStep = step.replace(",", ".").toDoubleOrNull()?.coerceIn(0.5, 20.0) ?: defaultProgressionStep
+                    if (code.isBlank()) return@Button
+                    val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
+                    onAdd(
+                        ExerciseEntity(
+                            code = code.trim(),
+                            brand = "",
+                            displayName = displayName.trim(),
+                            muscleGroup = selectedGroup,
+                            currentWeight = parsedWeight,
+                            weightUnit = weightUnit,
+                            recordedOn = dateFormat.format(Date()),
+                            progressionStepKg = parsedStep
+                        )
+                    )
+                }
+            ) {
+                Text("Hinzuf\u00fcgen")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        }
+    )
+}
+
+private fun exportExercisesJson(entities: List<ExerciseEntity>): String {
+    val root = JSONObject()
+    root.put("version", 1)
+    val arr = JSONArray()
+    for (e in entities) {
+        val obj = JSONObject()
+        obj.put("code", e.code)
+        obj.put("brand", e.brand)
+        obj.put("displayName", e.displayName)
+        obj.put("muscleGroup", e.muscleGroup)
+        obj.put("currentWeight", e.currentWeight)
+        obj.put("weightUnit", e.weightUnit)
+        obj.put("progressionStepKg", e.progressionStepKg)
+        obj.put("sortOrder", e.sortOrder)
+        arr.put(obj)
+    }
+    root.put("exercises", arr)
+    return root.toString(2)
+}
+
+private fun parseExercisesJson(json: String): List<ExerciseEntity> {
+    val root = JSONObject(json)
+    val arr = root.getJSONArray("exercises")
+    val result = mutableListOf<ExerciseEntity>()
+    val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
+    val today = dateFormat.format(Date())
+    for (i in 0 until arr.length()) {
+        val obj = arr.getJSONObject(i)
+        result.add(
+            ExerciseEntity(
+                code = obj.getString("code"),
+                brand = obj.optString("brand", ""),
+                displayName = obj.optString("displayName", ""),
+                muscleGroup = obj.optString("muscleGroup", ""),
+                currentWeight = obj.getDouble("currentWeight"),
+                weightUnit = obj.optString("weightUnit", "kg"),
+                recordedOn = today,
+                progressionStepKg = obj.optDouble("progressionStepKg", 2.5),
+                sortOrder = obj.optInt("sortOrder", i)
+            )
+        )
+    }
+    return result
+}
+
+private fun shareText(context: Context, text: String, filename: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "application/json"
+        putExtra(Intent.EXTRA_TEXT, text)
+        putExtra(Intent.EXTRA_SUBJECT, filename)
+    }
+    context.startActivity(
+        Intent.createChooser(intent, "Ger\u00e4te exportieren")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
 }

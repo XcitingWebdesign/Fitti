@@ -69,12 +69,12 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme)
 - Freitext-Ziel im Profil (mehrzeiliges Eingabefeld, auf Home Screen angezeigt)
 - Claude API-Schluessel Speicherung in Einstellungen (fuer KI-Feedback)
 - Shared Debug Keystore fuer konsistente APK-Signierung (CI + lokal)
+- Geraete hinzufuegen/entfernen in Einstellungen (Add-Dialog mit Muskelgruppe, Delete mit Bestaetigung)
+- Muskelgruppe ARMS im Add-Dialog waehlbar (alle 5 Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS)
+- Export/Import fuer Geraetewechsel (JSON via Android Share Sheet / Datei-Picker)
+- Koerpergewichts-Verlaufsgraph auf Home Screen (Canvas-basierter Liniengraph)
+- GitHub Actions CI/CD: `.github/workflows/build.yml` baut APK bei Push auf main, Artifact downloadbar
 
 ## Bekannte TODOs
 - KI-Feedback nach dem Training (kurz, via Claude API)
 - Woechentliche KI-Trainingsanalyse (laenger, via Claude API)
-- Geraete hinzufuegen/entfernen (UI + DAO)
-- Muskelgruppe ARMS ist unterstuetzt, Geraete muessen noch hinzugefuegt werden
-- Export/Import fuer Geraetewechsel
-- Koerpergewichts-Verlaufsgraph
-- GitHub Actions CI/CD: `.github/workflows/build.yml` baut APK bei Push auf main, Artifact downloadbar
