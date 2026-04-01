@@ -40,14 +40,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import com.fitti.data.ClaudeApiService
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.SessionExerciseEntity
+import com.fitti.data.SettingsRepository
 import com.fitti.data.SetLogEntity
+import com.fitti.data.WeightLogDao
 import com.fitti.data.WorkoutSessionRepository
 import com.fitti.ui.ActiveWorkoutUiState
 import com.fitti.ui.ActiveWorkoutViewModel
 import com.fitti.ui.ActiveWorkoutViewModelFactory
 import com.fitti.ui.SessionSummary
+import kotlinx.coroutines.launch
 import com.fitti.ui.TimerState
 
 import com.fitti.ui.common.cleanWeight
@@ -58,6 +67,8 @@ fun ActiveWorkoutScreen(
     sessionId: Long,
     workoutRepo: WorkoutSessionRepository,
     exerciseRepo: ExerciseRepository,
+    settingsRepo: SettingsRepository,
+    weightLogDao: WeightLogDao,
     application: Application,
     onWorkoutComplete: () -> Unit
 ) {
@@ -78,6 +89,10 @@ fun ActiveWorkoutScreen(
         state.isWorkoutComplete && state.sessionSummary != null -> {
             WorkoutSummaryContent(
                 summary = state.sessionSummary!!,
+                sessionId = sessionId,
+                workoutRepo = workoutRepo,
+                settingsRepo = settingsRepo,
+                weightLogDao = weightLogDao,
                 onFinish = onWorkoutComplete
             )
         }
@@ -453,99 +468,217 @@ private fun ProgressionDialogContent(
 @Composable
 private fun WorkoutSummaryContent(
     summary: SessionSummary,
+    sessionId: Long,
+    workoutRepo: WorkoutSessionRepository,
+    settingsRepo: SettingsRepository,
+    weightLogDao: WeightLogDao,
     onFinish: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    var aiFeedback by remember { mutableStateOf<String?>(null) }
+    var isLoadingFeedback by remember { mutableStateOf(false) }
+    var feedbackError by remember { mutableStateOf<String?>(null) }
+    val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
+
     Scaffold { innerPadding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            contentPadding = PaddingValues(vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            Text(
-                text = "Training abgeschlossen!",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF4CAF50)
-            )
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Training abgeschlossen!",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF4CAF50)
+                    )
 
-            Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(24.dp))
 
-            Text(
-                text = "Dauer: ${summary.durationMinutes} Minuten",
-                style = MaterialTheme.typography.titleLarge
-            )
+                    Text(
+                        text = "Dauer: ${summary.durationMinutes} Minuten",
+                        style = MaterialTheme.typography.titleLarge
+                    )
 
-            Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(8.dp))
 
-            Text(
-                text = "${summary.exercisesCompleted} von ${summary.totalExercises} \u00dcbungen",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                    Text(
+                        text = "${summary.exercisesCompleted} von ${summary.totalExercises} \u00dcbungen",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             if (summary.weightChanges.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
+                item {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Spacer(Modifier.height(24.dp))
 
-                Text(
-                    text = "Gewichts\u00e4nderungen:",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                        Text(
+                            text = "Gewichts\u00e4nderungen:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
 
-                Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(8.dp))
 
-                summary.weightChanges.forEach { change ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = change.exerciseName,
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Text(
-                                text = "${change.oldWeight.cleanWeight()} \u2192 ${change.newWeight.cleanWeight()} ${change.weightUnit}",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = Color(0xFF4CAF50),
-                                fontWeight = FontWeight.Bold
-                            )
+                        summary.weightChanges.forEach { change ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = change.exerciseName,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    Text(
+                                        text = "${change.oldWeight.cleanWeight()} \u2192 ${change.newWeight.cleanWeight()} ${change.weightUnit}",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = Color(0xFF4CAF50),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(40.dp))
+            // KI-Feedback section
+            if (hasApiKey) {
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(Modifier.height(24.dp))
 
-            Button(
-                onClick = onFinish,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(72.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text(
-                    "Fertig",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
+                        if (aiFeedback == null && !isLoadingFeedback) {
+                            FilledTonalButton(
+                                onClick = {
+                                    isLoadingFeedback = true
+                                    feedbackError = null
+                                    scope.launch {
+                                        val history = workoutRepo.getSessionHistory(sessionId)
+                                        if (history == null) {
+                                            feedbackError = "Training nicht gefunden."
+                                            isLoadingFeedback = false
+                                            return@launch
+                                        }
+                                        val weight = weightLogDao.getLatest()?.weightKg
+                                        val service = ClaudeApiService(settingsRepo.claudeApiKey)
+                                        service.getWorkoutFeedback(
+                                            history = history,
+                                            userGoal = settingsRepo.goal,
+                                            latestWeightKg = weight
+                                        ).onSuccess { feedback ->
+                                            aiFeedback = feedback
+                                        }.onFailure { e ->
+                                            feedbackError = "Fehler: ${e.message}"
+                                        }
+                                        isLoadingFeedback = false
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    "KI-Feedback",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                        }
+
+                        if (isLoadingFeedback) {
+                            Spacer(Modifier.height(16.dp))
+                            CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Analyse l\u00e4uft...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (feedbackError != null) {
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = feedbackError!!,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        if (aiFeedback != null) {
+                            Spacer(Modifier.height(12.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "KI-Feedback",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        text = aiFeedback!!,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(Modifier.height(40.dp))
+
+                Button(
+                    onClick = onFinish,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(72.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(
+                        "Fertig",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
         }
     }
