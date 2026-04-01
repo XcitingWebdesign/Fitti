@@ -69,10 +69,10 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme)
 - Freitext-Ziel im Profil (mehrzeiliges Eingabefeld, auf Home Screen angezeigt)
 - Claude API-Schluessel Speicherung in Einstellungen (fuer KI-Feedback)
 - Shared Debug Keystore fuer konsistente APK-Signierung (CI + lokal)
+- KI-Feedback nach dem Training (kurz, via Claude API) auf Summary- und History-Screen
+- Woechentliche KI-Trainingsanalyse (laenger, via Claude API) auf Home-Screen
 
 ## Bekannte TODOs
-- KI-Feedback nach dem Training (kurz, via Claude API)
-- Woechentliche KI-Trainingsanalyse (laenger, via Claude API)
 - Geraete hinzufuegen/entfernen (UI + DAO)
 - Muskelgruppe ARMS ist unterstuetzt, Geraete muessen noch hinzugefuegt werden
 - Export/Import fuer Geraetewechsel

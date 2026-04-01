@@ -26,9 +26,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +53,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fitti.data.ClaudeApiService
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.SettingsRepository
 import com.fitti.data.WeightLogDao
@@ -59,6 +63,11 @@ import com.fitti.ui.HomeUiState
 import com.fitti.ui.HomeViewModel
 import com.fitti.ui.HomeViewModelFactory
 import com.fitti.ui.MuscleGroupStatus
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.muscleGroupLabels
@@ -80,6 +89,9 @@ fun HomeScreen(
 
     HomeScreenContent(
         state = state,
+        settingsRepo = settingsRepo,
+        workoutRepo = workoutRepo,
+        weightLogDao = weightLogDao,
         onStartTraining = { vm.startOrContinueWorkout(onStartWorkout) },
         onOpenHistory = onOpenHistory,
         onOpenSettings = onOpenSettings,
@@ -92,12 +104,21 @@ fun HomeScreen(
 @Composable
 private fun HomeScreenContent(
     state: HomeUiState,
+    settingsRepo: SettingsRepository,
+    workoutRepo: WorkoutSessionRepository,
+    weightLogDao: WeightLogDao,
     onStartTraining: () -> Unit,
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onWeightEntered: (Double) -> Unit,
     onWeightSkipped: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    var weeklyAnalysis by remember { mutableStateOf<String?>(null) }
+    var isLoadingAnalysis by remember { mutableStateOf(false) }
+    var analysisError by remember { mutableStateOf<String?>(null) }
+    var showAnalysisDialog by remember { mutableStateOf(false) }
+    val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
     Scaffold(
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
@@ -209,6 +230,73 @@ private fun HomeScreenContent(
                 Spacer(Modifier.height(8.dp))
             }
 
+            // Weekly AI Analysis
+            if (hasApiKey && state.recentSessions.isNotEmpty()) {
+                item {
+                    OutlinedButton(
+                        onClick = {
+                            if (isLoadingAnalysis) return@OutlinedButton
+                            isLoadingAnalysis = true
+                            analysisError = null
+                            weeklyAnalysis = null
+                            scope.launch {
+                                val allHistories = workoutRepo.observeSessionHistories().first()
+                                val sdf = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
+                                val sevenDaysAgo = Calendar.getInstance().apply {
+                                    add(Calendar.DAY_OF_YEAR, -7)
+                                }.time
+                                val recentHistories = allHistories.filter { history ->
+                                    try {
+                                        val date = sdf.parse(history.session.completedAt ?: history.session.startedAt)
+                                        date != null && date.after(sevenDaysAgo)
+                                    } catch (_: Exception) { false }
+                                }
+                                if (recentHistories.isEmpty()) {
+                                    analysisError = "Keine Trainings in den letzten 7 Tagen."
+                                    isLoadingAnalysis = false
+                                    return@launch
+                                }
+                                val weight = weightLogDao.getLatest()?.weightKg
+                                val service = ClaudeApiService(settingsRepo.claudeApiKey)
+                                service.getWeeklyAnalysis(
+                                    sessions = recentHistories,
+                                    userGoal = settingsRepo.goal,
+                                    latestWeightKg = weight
+                                ).onSuccess { analysis ->
+                                    weeklyAnalysis = analysis
+                                    showAnalysisDialog = true
+                                }.onFailure { e ->
+                                    analysisError = "Fehler: ${e.message}"
+                                }
+                                isLoadingAnalysis = false
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isLoadingAnalysis) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            Text(
+                                "W\u00f6chentliche KI-Analyse",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                    }
+                    if (analysisError != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = analysisError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+
             // Recent Sessions
             if (state.recentSessions.isNotEmpty()) {
                 item {
@@ -239,6 +327,25 @@ private fun HomeScreenContent(
             lastWeight = state.lastWeightKg,
             onConfirm = onWeightEntered,
             onSkip = onWeightSkipped
+        )
+    }
+
+    // Weekly Analysis Dialog
+    if (showAnalysisDialog && weeklyAnalysis != null) {
+        AlertDialog(
+            onDismissRequest = { showAnalysisDialog = false },
+            title = { Text("W\u00f6chentliche KI-Analyse") },
+            text = {
+                Text(
+                    text = weeklyAnalysis!!,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showAnalysisDialog = false }) {
+                    Text("OK")
+                }
+            }
         )
     }
 }
