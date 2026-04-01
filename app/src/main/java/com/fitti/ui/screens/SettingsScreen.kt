@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.SettingsRepository
@@ -53,6 +54,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
 
     var goal by remember { mutableStateOf(settingsRepo.goal) }
+    var apiKey by remember { mutableStateOf(settingsRepo.claudeApiKey) }
     var heightCm by remember { mutableStateOf(settingsRepo.heightCm.let { if (it == 0) "" else it.toString() }) }
     var weightKg by remember { mutableStateOf("") }
     var repsMin by remember { mutableStateOf(settingsRepo.repsMin.toString()) }
@@ -132,9 +134,12 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = goal,
                     onValueChange = { goal = it },
-                    label = { Text("Ziel (z.B. Muskelaufbau, Abnehmen)") },
+                    label = { Text("Mein Ziel (frei formuliert)") },
+                    placeholder = { Text("z.B. Mit 70 noch meine Frau tragen k\u00f6nnen") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = false,
+                    minLines = 3,
+                    maxLines = 5
                 )
             }
 
@@ -322,6 +327,31 @@ fun SettingsScreen(
                 }
             }
 
+            // KI-Feedback section
+            item {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "KI-Feedback",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            item {
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("Claude API-Schl\u00fcssel") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    supportingText = { Text("Optional. Erm\u00f6glicht KI-Feedback nach dem Training.") }
+                )
+            }
+
             // Save button
             item {
                 Spacer(Modifier.height(16.dp))
@@ -339,6 +369,7 @@ fun SettingsScreen(
                         // Save profile
                         settingsRepo.goal = goal
                         settingsRepo.heightCm = heightCm.toIntOrNull()?.coerceIn(0, 300) ?: 0
+                        settingsRepo.claudeApiKey = apiKey.trim()
 
                         // Save weight if changed
                         val weight = weightKg.replace(",", ".").toDoubleOrNull()

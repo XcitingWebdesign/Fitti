@@ -36,6 +36,10 @@ class SettingsRepository(context: Context) {
         get() = prefs.getString(KEY_GOAL, "") ?: ""
         set(value) = prefs.edit().putString(KEY_GOAL, value).apply()
 
+    var claudeApiKey: String
+        get() = prefs.getString(KEY_CLAUDE_API_KEY, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_CLAUDE_API_KEY, value).apply()
+
     companion object {
         private const val KEY_REPS_MIN = "reps_min"
         private const val KEY_REPS_MAX = "reps_max"
@@ -44,5 +48,6 @@ class SettingsRepository(context: Context) {
         private const val KEY_PROGRESSION_STEP = "progression_step"
         private const val KEY_HEIGHT_CM = "height_cm"
         private const val KEY_GOAL = "goal"
+        private const val KEY_CLAUDE_API_KEY = "claude_api_key"
     }
 }

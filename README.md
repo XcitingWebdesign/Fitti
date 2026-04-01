@@ -18,7 +18,12 @@ Die App dient langfristig als Datengrundlage f\u00fcr einen LLM-basierten Person
 - \u2705 Periodische K\u00f6rpergewichts-Abfrage
 - \u2705 Einstellungen: Rep-Range, S\u00e4tze, Pause, Progression, Ziel, Gr\u00f6\u00dfe
 - \u2705 Dark Theme, Portrait-Lock, Screen-Always-On
-- \u2705 Room-Datenbank mit Migrationen (v1 \u2192 v2 \u2192 v3)
+- \u2705 Room-Datenbank mit Migrationen (v1 \u2192 v2 \u2192 v3 \u2192 v4)
+- \u2705 Wiederholungen pro Satz loggen (8-12 Auswahl)
+- \u2705 Gewichtssteigerung pro Maschine individuell (ExerciseEntity.progressionStepKg)
+- \u2705 Reihenfolge im Zirkel anpassbar (sortOrder, Hoch/Runter in Settings)
+- \u2705 Freitext-Ziel im Profil (mehrzeiliges Eingabefeld)
+- \u2705 Claude API-Schl\u00fcssel Speicherung in Einstellungen
 
 ## Kernfunktionen
 
@@ -69,9 +74,8 @@ Oder: Projekt in Android Studio \u00f6ffnen \u2192 Run auf verbundenem Ger\u00e4
 - Keine Smartwatch-Integration
 
 ## Geplante Verbesserungen
-- Wiederholungen pro Satz loggen (8-12 Auswahl)
-- Gewichtssteigerung pro Maschine individuell
-- Reihenfolge im Zirkel anpassbar
+- KI-Feedback nach dem Training (via Claude API)
+- W\u00f6chentliche KI-Trainingsanalyse
 - Export-Funktion (JSON) f\u00fcr LLM-Trainer
 - K\u00f6rpergewichts-Verlaufsgraph
-- Custom \u00dcbungen hinzuf\u00fcgen
+- Custom \u00dcbungen hinzuf\u00fcgen/entfernen
