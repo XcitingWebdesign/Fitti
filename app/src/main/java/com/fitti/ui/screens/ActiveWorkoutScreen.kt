@@ -189,6 +189,25 @@ private fun ExerciseContent(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Seat & pad positions
+                val positionParts = mutableListOf<String>()
+                if (exercise.exerciseSeatPosition.isNotBlank()) {
+                    positionParts.add("S${exercise.exerciseSeatPosition}")
+                }
+                if (exercise.exercisePadPosition.isNotBlank()) {
+                    positionParts.add("P${exercise.exercisePadPosition}")
+                }
+                if (positionParts.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = positionParts.joinToString(" \u2022 "),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 Spacer(Modifier.height(20.dp))
 
                 // Target values

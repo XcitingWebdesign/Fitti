@@ -1,8 +1,12 @@
 package com.fitti.ui
 
 import android.app.Application
+import android.media.AudioManager
 import android.media.RingtoneManager
+import android.media.ToneGenerator
 import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.content.Context
@@ -163,7 +167,8 @@ class ActiveWorkoutViewModel(
                 if (ProgressionService.isEligibleForProgression(logs, exercise.targetSets, exercise.targetReps)) {
                     val nextWeight = ProgressionService.calculateNextWeight(
                         exercise.targetWeight,
-                        exercise.progressionStepKg
+                        exercise.progressionStepKg,
+                        exercise.weightSteps
                     )
                     _uiState.update {
                         it.copy(
@@ -299,10 +304,24 @@ class ActiveWorkoutViewModel(
 
     private fun playNotificationSound() {
         try {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val ringtone = RingtoneManager.getRingtone(application, uri)
-            ringtone?.play()
-        } catch (_: Exception) { }
+            val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+            val handler = Handler(Looper.getMainLooper())
+            // Pleasant ascending three-tone chime
+            toneGen.startTone(ToneGenerator.TONE_DTMF_A, 150)
+            handler.postDelayed({
+                toneGen.startTone(ToneGenerator.TONE_DTMF_D, 150)
+            }, 200)
+            handler.postDelayed({
+                toneGen.startTone(ToneGenerator.TONE_DTMF_7, 300)
+                handler.postDelayed({ toneGen.release() }, 400)
+            }, 400)
+        } catch (_: Exception) {
+            // Fallback to system notification
+            try {
+                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                RingtoneManager.getRingtone(application, uri)?.play()
+            } catch (_: Exception) { }
+        }
     }
 
     private fun vibrate() {

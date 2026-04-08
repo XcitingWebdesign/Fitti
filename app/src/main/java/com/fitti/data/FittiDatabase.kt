@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SetLogEntity::class,
         WeightLogEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class FittiDatabase : RoomDatabase() {
@@ -124,9 +124,28 @@ abstract class FittiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Seat & pad positions on exercises
+                db.execSQL("ALTER TABLE exercises ADD COLUMN seatPosition TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN padPosition TEXT NOT NULL DEFAULT ''")
+                // Available weight steps (comma-separated kg values)
+                db.execSQL("ALTER TABLE exercises ADD COLUMN weightSteps TEXT NOT NULL DEFAULT ''")
+
+                // Nautilus Inspiration standard weight stack (kg)
+                val nautilusStack = "9,14,18,23,27,32,36,41,46,50,55,59,64,68,73,77,82,86,91"
+                db.execSQL("UPDATE exercises SET weightSteps = '$nautilusStack' WHERE brand = 'Nautilus' AND weightUnit = 'kg'")
+
+                // Snapshot fields on session_exercises
+                db.execSQL("ALTER TABLE session_exercises ADD COLUMN exerciseSeatPosition TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE session_exercises ADD COLUMN exercisePadPosition TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE session_exercises ADD COLUMN weightSteps TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun create(context: Context): FittiDatabase =
             Room.databaseBuilder(context, FittiDatabase::class.java, "fitti.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }

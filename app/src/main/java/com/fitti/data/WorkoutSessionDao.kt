@@ -76,12 +76,15 @@ interface WorkoutSessionDao {
                 exerciseCode = exercise.code,
                 exerciseDisplayName = exercise.displayName,
                 exerciseMuscleGroup = exercise.muscleGroup,
+                exerciseSeatPosition = exercise.seatPosition,
+                exercisePadPosition = exercise.padPosition,
                 targetWeight = exercise.currentWeight,
                 targetRepsMin = repsMin,
                 targetReps = repsMax,
                 targetSets = sets,
                 plannedRestSeconds = restSeconds,
-                progressionStepKg = exercise.progressionStepKg
+                progressionStepKg = exercise.progressionStepKg,
+                weightSteps = exercise.weightSteps
             )
         }
 

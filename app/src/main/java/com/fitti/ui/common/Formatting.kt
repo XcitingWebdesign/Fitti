@@ -8,7 +8,8 @@ val muscleGroupLabels = mapOf(
     "BACK" to "R\u00fccken",
     "LEGS" to "Beine",
     "SHOULDERS" to "Schultern",
-    "ARMS" to "Arme"
+    "ARMS" to "Arme",
+    "ABS" to "Bauch"
 )
 
 fun Double.cleanWeight(): String {

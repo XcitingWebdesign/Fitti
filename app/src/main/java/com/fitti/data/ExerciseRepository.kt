@@ -27,6 +27,10 @@ class ExerciseRepository(
         dao.updateSortOrder(exerciseId, sortOrder)
     }
 
+    suspend fun updatePositions(exerciseId: Long, seat: String, pad: String) {
+        dao.updatePositions(exerciseId, seat, pad)
+    }
+
     suspend fun addExercise(entity: ExerciseEntity): Long =
         dao.insert(entity)
 
@@ -43,15 +47,17 @@ class ExerciseRepository(
 
     suspend fun ensureSeeded() {
         if (dao.count() > 0) return
+        val nautilusStack = "9,14,18,23,27,32,36,41,46,50,55,59,64,68,73,77,82,86,91"
         dao.insertAll(
             listOf(
-                ExerciseEntity(code = "B2", brand = "Nautilus", displayName = "Chest Press", muscleGroup = "CHEST", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 2.5, sortOrder = 0),
-                ExerciseEntity(code = "B6", brand = "Nautilus", displayName = "Leg Press", muscleGroup = "LEGS", currentWeight = 160.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 2.5, sortOrder = 1),
-                ExerciseEntity(code = "C2", brand = "Nautilus", displayName = "Seated Row", muscleGroup = "BACK", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 2.5, sortOrder = 2),
-                ExerciseEntity(code = "C6", brand = "Nautilus", displayName = "Butterfly", muscleGroup = "CHEST", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 2.5, sortOrder = 3),
-                ExerciseEntity(code = "D3", brand = "Nautilus", displayName = "Shoulder Press", muscleGroup = "SHOULDERS", currentWeight = 36.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 2.5, sortOrder = 4),
+                ExerciseEntity(code = "B2", brand = "Nautilus", displayName = "Chest Press", muscleGroup = "CHEST", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 0, weightSteps = nautilusStack),
+                ExerciseEntity(code = "B6", brand = "Nautilus", displayName = "Leg Press", muscleGroup = "LEGS", currentWeight = 160.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 1),
+                ExerciseEntity(code = "C2", brand = "Nautilus", displayName = "Seated Row", muscleGroup = "BACK", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 2, weightSteps = nautilusStack),
+                ExerciseEntity(code = "C6", brand = "Nautilus", displayName = "Butterfly", muscleGroup = "CHEST", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 3, weightSteps = nautilusStack),
+                ExerciseEntity(code = "D3", brand = "Nautilus", displayName = "Shoulder Press", muscleGroup = "SHOULDERS", currentWeight = 36.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 4, weightSteps = nautilusStack),
                 ExerciseEntity(code = "D4", brand = "Nautilus", displayName = "Leg Extension", muscleGroup = "LEGS", currentWeight = 60.0, weightUnit = "lb", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 5),
-                ExerciseEntity(code = "F3", brand = "Nautilus", displayName = "Lat Pulldown", muscleGroup = "BACK", currentWeight = 32.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 2.5, sortOrder = 6)
+                ExerciseEntity(code = "F3", brand = "Nautilus", displayName = "Lat Pulldown", muscleGroup = "BACK", currentWeight = 32.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 6, weightSteps = nautilusStack),
+                ExerciseEntity(code = "F6", brand = "Nautilus", displayName = "Ab Crunch", muscleGroup = "ABS", currentWeight = 35.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 7, weightSteps = nautilusStack)
             )
         )
     }
@@ -66,6 +72,9 @@ class ExerciseRepository(
         weightUnit = weightUnit,
         recordedOn = recordedOn,
         progressionStepKg = progressionStepKg,
-        sortOrder = sortOrder
+        sortOrder = sortOrder,
+        seatPosition = seatPosition,
+        padPosition = padPosition,
+        weightSteps = weightSteps
     )
 }

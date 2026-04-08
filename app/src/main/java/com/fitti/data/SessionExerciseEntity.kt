@@ -24,10 +24,13 @@ data class SessionExerciseEntity(
     val exerciseCode: String,
     val exerciseDisplayName: String = "",
     val exerciseMuscleGroup: String = "",
+    val exerciseSeatPosition: String = "",
+    val exercisePadPosition: String = "",
     val targetWeight: Double,
     val targetRepsMin: Int = 8,
     val targetReps: Int,
     val targetSets: Int,
     val plannedRestSeconds: Int,
-    val progressionStepKg: Double
+    val progressionStepKg: Double,
+    val weightSteps: String = ""
 )

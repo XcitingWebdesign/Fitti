@@ -15,8 +15,8 @@ APK Output: `app/build/outputs/apk/debug/app-debug.apk`
 com.fitti/
   MainActivity.kt          # NavHost mit 4 Routes
   data/                     # Room Entities, DAOs, Repositories
-    FittiDatabase.kt        # Version 4, Migrationen 1->2->3->4
-    ExerciseEntity.kt       # 7 Nautilus-Maschinen (Seed-Daten)
+    FittiDatabase.kt        # Version 5, Migrationen 1->2->3->4->5
+    ExerciseEntity.kt       # 8 Nautilus-Maschinen (Seed-Daten, inkl. F6 Ab Crunch)
     SessionExerciseEntity.kt # Soll-Snapshot pro Training
     SetLogEntity.kt         # Ist-Werte pro Satz
     WeightLogEntity.kt      # Koerpergewicht-Zeitreihe
@@ -35,7 +35,7 @@ com.fitti/
 ```
 
 ## Datenbank
-- Room SQLite, Version 4, offline-first
+- Room SQLite, Version 5, offline-first
 - Snapshot-Pattern: SessionExercise friert Planwerte beim Start ein
 - Set-Logs sind nach Session-Abschluss read-only
 
@@ -56,8 +56,9 @@ com.fitti/
 | D3 | Shoulder Press | SHOULDERS |
 | D4 | Leg Extension | LEGS |
 | F3 | Lat Pulldown | BACK |
+| F6 | Ab Crunch | ABS |
 
-Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme)
+Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 
 ## Umgesetzte Features
 - Reps pro Satz loggen (8-12 Auswahl statt nur geschafft/nicht)
@@ -74,6 +75,9 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme)
 - Export/Import fuer Geraetewechsel (JSON via Android Share Sheet / Datei-Picker)
 - Koerpergewichts-Verlaufsgraph auf Home Screen (Canvas-basierter Liniengraph)
 - GitHub Actions CI/CD: `.github/workflows/build.yml` baut APK bei Push auf main, Artifact downloadbar
+- Sitz- und Polsterposition pro Geraet (seatPosition/padPosition, Anzeige im Training als S/P)
+- Nautilus Gewichtsstufen-Stack pro Geraet (weightSteps, automatische naechste Stufe bei Progression)
+- Angenehmer Dreiklang-Sound bei Timer-Ende (ToneGenerator statt System-Notification)
 
 ## Bekannte TODOs
 - KI-Feedback nach dem Training (kurz, via Claude API)

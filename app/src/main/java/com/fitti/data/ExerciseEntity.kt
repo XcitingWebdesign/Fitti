@@ -14,5 +14,8 @@ data class ExerciseEntity(
     val weightUnit: String,
     val recordedOn: String,
     val progressionStepKg: Double = 2.5,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val seatPosition: String = "",
+    val padPosition: String = "",
+    val weightSteps: String = ""
 )
