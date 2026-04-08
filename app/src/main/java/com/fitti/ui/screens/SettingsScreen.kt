@@ -60,7 +60,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val allMuscleGroups = listOf("CHEST", "BACK", "LEGS", "SHOULDERS", "ARMS")
+private val allMuscleGroups = listOf("CHEST", "BACK", "LEGS", "SHOULDERS", "ARMS", "ABS")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,6 +85,8 @@ fun SettingsScreen(
     var lastWeightInfo by remember { mutableStateOf("") }
     var exercises by remember { mutableStateOf(emptyList<Exercise>()) }
     var exerciseSteps by remember { mutableStateOf(emptyMap<Long, String>()) }
+    var exerciseSeats by remember { mutableStateOf(emptyMap<Long, String>()) }
+    var exercisePads by remember { mutableStateOf(emptyMap<Long, String>()) }
 
     // Add exercise dialog state
     var showAddDialog by remember { mutableStateOf(false) }
@@ -131,6 +133,8 @@ fun SettingsScreen(
                 exercises = list.sortedBy { it.sortOrder }
                 if (exerciseSteps.isEmpty()) {
                     exerciseSteps = list.associate { it.id to it.progressionStepKg.toString() }
+                    exerciseSeats = list.associate { it.id to it.seatPosition }
+                    exercisePads = list.associate { it.id to it.padPosition }
                 }
             }
         }
@@ -320,81 +324,106 @@ fun SettingsScreen(
 
             items(exercises.size) { index ->
                 val exercise = exercises[index]
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Reorder buttons
-                    Column {
-                        TextButton(
-                            onClick = {
-                                if (index > 0) {
-                                    val mutable = exercises.toMutableList()
-                                    val prev = mutable[index - 1]
-                                    mutable[index - 1] = exercise
-                                    mutable[index] = prev
-                                    exercises = mutable
-                                }
-                            },
-                            enabled = index > 0,
-                            modifier = Modifier.size(36.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("\u25B2", style = MaterialTheme.typography.bodyLarge)
-                        }
-                        TextButton(
-                            onClick = {
-                                if (index < exercises.size - 1) {
-                                    val mutable = exercises.toMutableList()
-                                    val next = mutable[index + 1]
-                                    mutable[index + 1] = exercise
-                                    mutable[index] = next
-                                    exercises = mutable
-                                }
-                            },
-                            enabled = index < exercises.size - 1,
-                            modifier = Modifier.size(36.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("\u25BC", style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-
-                    // Exercise name
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = exercise.displayName.ifEmpty { exercise.code },
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "${exercise.code} \u2022 ${muscleGroupLabels[exercise.muscleGroup] ?: exercise.muscleGroup}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Per-exercise progression step
-                    OutlinedTextField(
-                        value = exerciseSteps[exercise.id] ?: exercise.progressionStepKg.toString(),
-                        onValueChange = { exerciseSteps = exerciseSteps + (exercise.id to it) },
-                        label = { Text("kg") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.width(72.dp),
-                        singleLine = true
-                    )
-
-                    // Delete button
-                    TextButton(
-                        onClick = { exerciseToDelete = exercise },
-                        modifier = Modifier.size(36.dp),
-                        contentPadding = PaddingValues(0.dp)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            "\u2715",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
+                        // Reorder buttons
+                        Column {
+                            TextButton(
+                                onClick = {
+                                    if (index > 0) {
+                                        val mutable = exercises.toMutableList()
+                                        val prev = mutable[index - 1]
+                                        mutable[index - 1] = exercise
+                                        mutable[index] = prev
+                                        exercises = mutable
+                                    }
+                                },
+                                enabled = index > 0,
+                                modifier = Modifier.size(36.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("\u25B2", style = MaterialTheme.typography.bodyLarge)
+                            }
+                            TextButton(
+                                onClick = {
+                                    if (index < exercises.size - 1) {
+                                        val mutable = exercises.toMutableList()
+                                        val next = mutable[index + 1]
+                                        mutable[index + 1] = exercise
+                                        mutable[index] = next
+                                        exercises = mutable
+                                    }
+                                },
+                                enabled = index < exercises.size - 1,
+                                modifier = Modifier.size(36.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("\u25BC", style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+
+                        // Exercise name
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = exercise.displayName.ifEmpty { exercise.code },
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "${exercise.code} \u2022 ${muscleGroupLabels[exercise.muscleGroup] ?: exercise.muscleGroup}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Per-exercise progression step
+                        OutlinedTextField(
+                            value = exerciseSteps[exercise.id] ?: exercise.progressionStepKg.toString(),
+                            onValueChange = { exerciseSteps = exerciseSteps + (exercise.id to it) },
+                            label = { Text("kg") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.width(72.dp),
+                            singleLine = true
+                        )
+
+                        // Delete button
+                        TextButton(
+                            onClick = { exerciseToDelete = exercise },
+                            modifier = Modifier.size(36.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                "\u2715",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+
+                    // Seat & pad position row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 44.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = exerciseSeats[exercise.id] ?: exercise.seatPosition,
+                            onValueChange = { exerciseSeats = exerciseSeats + (exercise.id to it) },
+                            label = { Text("Sitz (S)") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = exercisePads[exercise.id] ?: exercise.padPosition,
+                            onValueChange = { exercisePads = exercisePads + (exercise.id to it) },
+                            label = { Text("Polster (P)") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
                         )
                     }
                 }
@@ -514,6 +543,9 @@ fun SettingsScreen(
                                 val stepText = exerciseSteps[ex.id] ?: ex.progressionStepKg.toString()
                                 val step = stepText.replace(",", ".").toDoubleOrNull()?.coerceIn(0.5, 20.0) ?: ex.progressionStepKg
                                 exerciseRepo.updateProgressionStep(ex.id, step)
+                                val seat = exerciseSeats[ex.id] ?: ex.seatPosition
+                                val pad = exercisePads[ex.id] ?: ex.padPosition
+                                exerciseRepo.updatePositions(ex.id, seat.trim(), pad.trim())
                             }
                         }
 
@@ -597,6 +629,8 @@ private fun AddExerciseDialog(
     var weight by remember { mutableStateOf("") }
     var weightUnit by remember { mutableStateOf("kg") }
     var step by remember { mutableStateOf(defaultProgressionStep.toString()) }
+    var seatPos by remember { mutableStateOf("") }
+    var padPos by remember { mutableStateOf("") }
     var groupExpanded by remember { mutableStateOf(false) }
     var unitExpanded by remember { mutableStateOf(false) }
 
@@ -689,6 +723,23 @@ private fun AddExerciseDialog(
                     }
                 }
 
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = seatPos,
+                        onValueChange = { seatPos = it },
+                        label = { Text("Sitz (S)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = padPos,
+                        onValueChange = { padPos = it },
+                        label = { Text("Polster (P)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+
                 OutlinedTextField(
                     value = step,
                     onValueChange = { step = it },
@@ -715,7 +766,9 @@ private fun AddExerciseDialog(
                             currentWeight = parsedWeight,
                             weightUnit = weightUnit,
                             recordedOn = dateFormat.format(Date()),
-                            progressionStepKg = parsedStep
+                            progressionStepKg = parsedStep,
+                            seatPosition = seatPos.trim(),
+                            padPosition = padPos.trim()
                         )
                     )
                 }
@@ -733,7 +786,7 @@ private fun AddExerciseDialog(
 
 private fun exportExercisesJson(entities: List<ExerciseEntity>): String {
     val root = JSONObject()
-    root.put("version", 1)
+    root.put("version", 2)
     val arr = JSONArray()
     for (e in entities) {
         val obj = JSONObject()
@@ -745,6 +798,9 @@ private fun exportExercisesJson(entities: List<ExerciseEntity>): String {
         obj.put("weightUnit", e.weightUnit)
         obj.put("progressionStepKg", e.progressionStepKg)
         obj.put("sortOrder", e.sortOrder)
+        obj.put("seatPosition", e.seatPosition)
+        obj.put("padPosition", e.padPosition)
+        obj.put("weightSteps", e.weightSteps)
         arr.put(obj)
     }
     root.put("exercises", arr)
@@ -769,7 +825,10 @@ private fun parseExercisesJson(json: String): List<ExerciseEntity> {
                 weightUnit = obj.optString("weightUnit", "kg"),
                 recordedOn = today,
                 progressionStepKg = obj.optDouble("progressionStepKg", 2.5),
-                sortOrder = obj.optInt("sortOrder", i)
+                sortOrder = obj.optInt("sortOrder", i),
+                seatPosition = obj.optString("seatPosition", ""),
+                padPosition = obj.optString("padPosition", ""),
+                weightSteps = obj.optString("weightSteps", "")
             )
         )
     }

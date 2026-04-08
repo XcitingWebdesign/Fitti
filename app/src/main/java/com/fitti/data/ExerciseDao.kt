@@ -35,6 +35,12 @@ interface ExerciseDao {
     @Query("UPDATE exercises SET sortOrder = :sortOrder WHERE id = :exerciseId")
     suspend fun updateSortOrder(exerciseId: Long, sortOrder: Int)
 
+    @Query("UPDATE exercises SET seatPosition = :seat, padPosition = :pad WHERE id = :exerciseId")
+    suspend fun updatePositions(exerciseId: Long, seat: String, pad: String)
+
+    @Query("UPDATE exercises SET weightSteps = :steps WHERE id = :exerciseId")
+    suspend fun updateWeightSteps(exerciseId: Long, steps: String)
+
     @Query("DELETE FROM exercises WHERE id = :exerciseId")
     suspend fun deleteById(exerciseId: Long)
 
