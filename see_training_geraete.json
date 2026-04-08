@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "exercises": [
+    {
+      "code": "C6",
+      "displayName": "Lat Pulldown",
+      "muscleGroup": "BACK",
+      "currentWeight": 50,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 0
+    },
+    {
+      "code": "D4",
+      "displayName": "Chest Press",
+      "muscleGroup": "CHEST",
+      "currentWeight": 50,
+      "weightUnit": "lb",
+      "progressionStepKg": 2.5,
+      "sortOrder": 1
+    },
+    {
+      "code": "E4",
+      "displayName": "Shoulder Press",
+      "muscleGroup": "SHOULDERS",
+      "currentWeight": 47,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 2
+    },
+    {
+      "code": "F3",
+      "displayName": "Ab Crunch",
+      "muscleGroup": "",
+      "currentWeight": 20,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 3
+    },
+    {
+      "code": "F6",
+      "displayName": "Back Extension",
+      "muscleGroup": "BACK",
+      "currentWeight": 70,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 4
+    },
+    {
+      "code": "B2",
+      "displayName": "Leg Curl",
+      "muscleGroup": "LEGS",
+      "currentWeight": 35,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 5
+    },
+    {
+      "code": "B3",
+      "displayName": "Leg Extension",
+      "muscleGroup": "LEGS",
+      "currentWeight": 35,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 6
+    },
+    {
+      "code": "C2",
+      "displayName": "Row",
+      "muscleGroup": "BACK",
+      "currentWeight": 46,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 7
+    },
+    {
+      "code": "B5",
+      "displayName": "Leg Press",
+      "muscleGroup": "LEGS",
+      "currentWeight": 70,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 8
+    },
+    {
+      "code": "A3",
+      "displayName": "Adductor",
+      "muscleGroup": "LEGS",
+      "currentWeight": 13,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 9
+    },
+    {
+      "code": "A4",
+      "displayName": "Abductor",
+      "muscleGroup": "LEGS",
+      "currentWeight": 12,
+      "weightUnit": "kg",
+      "progressionStepKg": 2.5,
+      "sortOrder": 10
+    }
+  ]
+}

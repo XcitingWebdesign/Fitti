@@ -93,16 +93,20 @@ fun SettingsScreen(
     // Import status message
     var importMessage by remember { mutableStateOf("") }
 
-    // File picker for import
+    // File picker for import (JSON or CSV)
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             try {
-                val json = context.contentResolver.openInputStream(uri)
+                val text = context.contentResolver.openInputStream(uri)
                     ?.bufferedReader()?.use { it.readText() } ?: return@launch
-                val imported = parseExercisesJson(json)
+                val imported = if (text.trimStart().startsWith("{")) {
+                    parseExercisesJson(text)
+                } else {
+                    parseExercisesCsv(text)
+                }
                 if (imported.isNotEmpty()) {
                     exerciseRepo.replaceAll(imported)
                     importMessage = "${imported.size} Ger\u00e4te importiert"
@@ -431,7 +435,7 @@ fun SettingsScreen(
                         Text("Ger\u00e4te exportieren")
                     }
                     OutlinedButton(
-                        onClick = { importLauncher.launch("application/json") },
+                        onClick = { importLauncher.launch("*/*") },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Ger\u00e4te importieren")
@@ -774,6 +778,29 @@ private fun parseExercisesJson(json: String): List<ExerciseEntity> {
         )
     }
     return result
+}
+
+private fun parseExercisesCsv(csv: String): List<ExerciseEntity> {
+    val lines = csv.trim().lines().filter { it.isNotBlank() }
+    if (lines.size < 2) return emptyList()
+    val header = lines.first().split(",").map { it.trim().lowercase() }
+    val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
+    val today = dateFormat.format(Date())
+    return lines.drop(1).mapIndexed { index, line ->
+        val cols = line.split(",").map { it.trim() }
+        fun col(name: String): String = header.indexOf(name).let { if (it >= 0 && it < cols.size) cols[it] else "" }
+        ExerciseEntity(
+            code = col("code"),
+            brand = col("brand"),
+            displayName = col("displayname"),
+            muscleGroup = col("musclegroup"),
+            currentWeight = col("currentweight").replace(",", ".").toDoubleOrNull() ?: 0.0,
+            weightUnit = col("weightunit").ifEmpty { "kg" },
+            recordedOn = today,
+            progressionStepKg = col("progressionstepkg").replace(",", ".").toDoubleOrNull() ?: 2.5,
+            sortOrder = col("sortorder").toIntOrNull() ?: index
+        )
+    }
 }
 
 private fun shareText(context: Context, text: String, filename: String) {
