@@ -57,6 +57,8 @@ import com.fitti.data.WorkoutSessionDao
 import com.fitti.data.WorkoutSessionEntity
 import com.fitti.domain.Exercise
 import com.fitti.ui.common.cleanWeight
+import com.fitti.ui.common.formatDate
+import com.fitti.ui.common.formatDateTime
 import com.fitti.ui.common.muscleGroupLabels
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -612,11 +614,10 @@ fun SettingsScreen(
                         val weight = weightKg.replace(",", ".").toDoubleOrNull()
                         if (weight != null && weight in 20.0..300.0) {
                             scope.launch {
-                                val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
                                 weightLogDao.insert(
                                     WeightLogEntity(
                                         weightKg = weight,
-                                        loggedAt = dateFormat.format(Date())
+                                        loggedAt = formatDateTime(Date())
                                     )
                                 )
                             }
@@ -629,8 +630,7 @@ fun SettingsScreen(
                         settingsRepo.progressionStepKg = validStep
 
                         scope.launch {
-                            val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
-                            val today = dateFormat.format(Date())
+                            val today = formatDate(Date())
                             exercises.forEachIndexed { idx, ex ->
                                 exerciseRepo.updateSortOrder(ex.id, idx)
                                 val stepText = exerciseSteps[ex.id] ?: ex.progressionStepKg.toString()
@@ -904,7 +904,6 @@ private fun AddExerciseDialog(
                     val parsedWeight = weight.replace(",", ".").toDoubleOrNull() ?: return@Button
                     val parsedStep = step.replace(",", ".").toDoubleOrNull()?.coerceIn(0.5, 20.0) ?: defaultProgressionStep
                     if (code.isBlank()) return@Button
-                    val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
                     onAdd(
                         ExerciseEntity(
                             code = code.trim(),
@@ -913,7 +912,7 @@ private fun AddExerciseDialog(
                             muscleGroup = selectedGroup,
                             currentWeight = parsedWeight,
                             weightUnit = weightUnit,
-                            recordedOn = dateFormat.format(Date()),
+                            recordedOn = formatDate(Date()),
                             progressionStepKg = parsedStep,
                             seatPosition = seatPos.trim(),
                             padPosition = padPos.trim()
@@ -959,8 +958,7 @@ private fun parseExercisesJson(json: String): List<ExerciseEntity> {
     val root = JSONObject(json)
     val arr = root.getJSONArray("exercises")
     val result = mutableListOf<ExerciseEntity>()
-    val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
-    val today = dateFormat.format(Date())
+    val today = formatDate(Date())
     for (i in 0 until arr.length()) {
         val obj = arr.getJSONObject(i)
         result.add(
@@ -992,8 +990,7 @@ private suspend fun exportFullBackup(
     val root = JSONObject()
     root.put("type", "full_backup")
     root.put("version", 1)
-    val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
-    root.put("exportedAt", dateFormat.format(Date()))
+    root.put("exportedAt", formatDateTime(Date()))
 
     // Settings
     val settings = JSONObject()

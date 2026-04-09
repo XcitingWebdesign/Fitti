@@ -11,15 +11,18 @@ import com.fitti.data.WorkoutSessionEntity
 import com.fitti.data.WorkoutSessionRepository
 import com.fitti.domain.Exercise
 import com.fitti.domain.StartWorkoutSessionUseCase
+import com.fitti.ui.common.FRESHNESS_FRESH_DAYS
+import com.fitti.ui.common.FRESHNESS_STALE_DAYS
+import com.fitti.ui.common.WEIGHT_LOG_INTERVAL_DAYS
+import com.fitti.ui.common.daysSince
+import com.fitti.ui.common.formatDateTime
+import com.fitti.ui.common.parseDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 data class HomeUiState(
     val exercises: List<Exercise> = emptyList(),
@@ -45,8 +48,6 @@ class HomeViewModel(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-
-    private val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
 
     init {
         viewModelScope.launch { exerciseRepo.ensureSeeded() }
@@ -103,7 +104,7 @@ class HomeViewModel(
             weightLogDao.insert(
                 WeightLogEntity(
                     weightKg = weightKg,
-                    loggedAt = dateFormat.format(Date())
+                    loggedAt = formatDateTime(Date())
                 )
             )
             _uiState.update { it.copy(showWeightDialog = false) }
@@ -121,7 +122,7 @@ class HomeViewModel(
         if (activeId != null) {
             onSessionReady(activeId)
         } else {
-            val sessionId = startWorkoutSessionUseCase(dateFormat.format(Date()))
+            val sessionId = startWorkoutSessionUseCase(formatDateTime(Date()))
             _uiState.update { it.copy(activeSessionId = sessionId) }
             onSessionReady(sessionId)
         }
@@ -139,20 +140,18 @@ class HomeViewModel(
 
                 for (session in sessions) {
                     val completedAt = session.completedAt ?: continue
-                    try {
-                        val sessionDate = dateFormat.parse(completedAt) ?: continue
-                        val history = workoutRepo.getSessionExercises(session.id)
-                        val hasGroup = history.any { it.exerciseMuscleGroup == group }
-                        if (hasGroup && (latestDate == null || sessionDate.after(latestDate))) {
-                            latestDate = sessionDate
-                        }
-                    } catch (_: Exception) { }
+                    val sessionDate = parseDateTime(completedAt) ?: continue
+                    val history = workoutRepo.getSessionExercises(session.id)
+                    val hasGroup = history.any { it.exerciseMuscleGroup == group }
+                    if (hasGroup && (latestDate == null || sessionDate.after(latestDate))) {
+                        latestDate = sessionDate
+                    }
                 }
 
                 freshness[group] = when {
                     latestDate == null -> MuscleGroupStatus.NEVER
-                    daysSince(latestDate) <= 4 -> MuscleGroupStatus.FRESH
-                    daysSince(latestDate) <= 6 -> MuscleGroupStatus.STALE
+                    daysSince(latestDate) <= FRESHNESS_FRESH_DAYS -> MuscleGroupStatus.FRESH
+                    daysSince(latestDate) <= FRESHNESS_STALE_DAYS -> MuscleGroupStatus.STALE
                     else -> MuscleGroupStatus.OVERDUE
                 }
             }
@@ -161,18 +160,9 @@ class HomeViewModel(
         }
     }
 
-    private fun daysSince(date: Date): Long {
-        val diff = System.currentTimeMillis() - date.time
-        return TimeUnit.MILLISECONDS.toDays(diff)
-    }
-
     private fun isOlderThan7Days(dateStr: String): Boolean {
-        return try {
-            val date = dateFormat.parse(dateStr) ?: return true
-            daysSince(date) >= 7
-        } catch (_: Exception) {
-            true
-        }
+        val date = parseDateTime(dateStr) ?: return true
+        return daysSince(date) >= WEIGHT_LOG_INTERVAL_DAYS
     }
 }
 

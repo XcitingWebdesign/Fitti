@@ -1,6 +1,9 @@
 # Fitti - Projektkonventionen
 
 ## Build
+Gradle laeuft als GitHub Action (`.github/workflows/build.yml`). Lokal ist kein Android SDK / JAVA_HOME noetig — CI baut und testet automatisch bei Push auf main.
+
+Fuer lokale Builds (optional, nur mit Android Studio):
 ```bash
 export JAVA_HOME="/e/Program Files/Android/Android Studio/jbr"
 ./gradlew assembleDebug    # APK bauen
@@ -29,7 +32,8 @@ com.fitti/
     HomeViewModel.kt        # Home: Muskelgruppen-Frische, Sessions
     ActiveWorkoutViewModel.kt # Kern: Queue, Timer, Progression
     HistoryDetailViewModel.kt
-    common/Formatting.kt    # Shared: muscleGroupLabels, cleanWeight, calculateDuration
+    common/Formatting.kt    # Shared: Datumsformate, muscleGroupLabels, cleanWeight, daysSince
+    common/AiFeedbackSection.kt # Shared KI-Feedback Composable
     theme/FittiTheme.kt     # Dark Theme
     screens/                # 4 Compose Screens
 ```
@@ -80,5 +84,4 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 - Angenehmer Dreiklang-Sound bei Timer-Ende (ToneGenerator statt System-Notification)
 
 ## Bekannte TODOs
-- KI-Feedback nach dem Training (kurz, via Claude API)
-- Woechentliche KI-Trainingsanalyse (laenger, via Claude API)
+- Detailliertere KI-Trainingsanalyse (Trends ueber mehrere Wochen)

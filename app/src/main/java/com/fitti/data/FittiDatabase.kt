@@ -132,8 +132,7 @@ abstract class FittiDatabase : RoomDatabase() {
                 // Available weight steps (comma-separated kg values)
                 db.execSQL("ALTER TABLE exercises ADD COLUMN weightSteps TEXT NOT NULL DEFAULT ''")
 
-                // Nautilus Inspiration standard weight stack (kg)
-                val nautilusStack = "9,14,18,23,27,32,36,41,46,50,55,59,64,68,73,77,82,86,91"
+                val nautilusStack = ExerciseEntity.NAUTILUS_WEIGHT_STACK_KG
                 db.execSQL("UPDATE exercises SET weightSteps = '$nautilusStack' WHERE brand = 'Nautilus' AND weightUnit = 'kg'")
 
                 // Snapshot fields on session_exercises

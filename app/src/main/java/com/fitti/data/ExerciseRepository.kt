@@ -47,7 +47,7 @@ class ExerciseRepository(
 
     suspend fun ensureSeeded() {
         if (dao.count() > 0) return
-        val nautilusStack = "9,14,18,23,27,32,36,41,46,50,55,59,64,68,73,77,82,86,91"
+        val nautilusStack = ExerciseEntity.NAUTILUS_WEIGHT_STACK_KG
         dao.insertAll(
             listOf(
                 ExerciseEntity(code = "B2", brand = "Nautilus", displayName = "Chest Press", muscleGroup = "CHEST", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 0, weightSteps = nautilusStack),
