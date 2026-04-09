@@ -65,13 +65,12 @@ import com.fitti.ui.HomeViewModelFactory
 import com.fitti.ui.MuscleGroupStatus
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Locale
 
 import com.fitti.ui.common.WeightChart
 import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.muscleGroupLabels
+import com.fitti.ui.common.parseDateTime
 
 @Composable
 fun HomeScreen(
@@ -258,15 +257,12 @@ private fun HomeScreenContent(
                             weeklyAnalysis = null
                             scope.launch {
                                 val allHistories = workoutRepo.observeSessionHistories().first()
-                                val sdf = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
                                 val sevenDaysAgo = Calendar.getInstance().apply {
                                     add(Calendar.DAY_OF_YEAR, -7)
                                 }.time
                                 val recentHistories = allHistories.filter { history ->
-                                    try {
-                                        val date = sdf.parse(history.session.completedAt ?: history.session.startedAt)
-                                        date != null && date.after(sevenDaysAgo)
-                                    } catch (_: Exception) { false }
+                                    val date = parseDateTime(history.session.completedAt ?: history.session.startedAt)
+                                    date != null && date.after(sevenDaysAgo)
                                 }
                                 if (recentHistories.isEmpty()) {
                                     analysisError = "Keine Trainings in den letzten 7 Tagen."

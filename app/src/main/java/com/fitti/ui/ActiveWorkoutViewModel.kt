@@ -18,15 +18,15 @@ import com.fitti.data.SessionExerciseEntity
 import com.fitti.data.SetLogEntity
 import com.fitti.data.WorkoutSessionRepository
 import com.fitti.domain.ProgressionService
+import com.fitti.ui.common.formatDateTime
+import com.fitti.ui.common.parseDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.ArrayDeque
 import java.util.Date
-import java.util.Locale
 
 data class ActiveWorkoutUiState(
     val currentExercise: SessionExerciseEntity? = null,
@@ -81,8 +81,6 @@ class ActiveWorkoutViewModel(
     private var countDownTimer: CountDownTimer? = null
     private var sessionStartTime: Date? = null
 
-    private val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
-
     init {
         loadSession()
     }
@@ -91,7 +89,7 @@ class ActiveWorkoutViewModel(
         viewModelScope.launch {
             // Fix 1a: use sessionId, not getActiveSession()
             val session = workoutRepo.getSessionById(sessionId) ?: return@launch
-            sessionStartTime = try { dateFormat.parse(session.startedAt) } catch (_: Exception) { Date() }
+            sessionStartTime = parseDateTime(session.startedAt) ?: Date()
 
             val allExercises = workoutRepo.getSessionExercises(sessionId)
             val totalExercises = allExercises.size
@@ -250,7 +248,7 @@ class ActiveWorkoutViewModel(
 
     private suspend fun finishWorkout() {
         countDownTimer?.cancel()
-        val now = dateFormat.format(Date())
+        val now = formatDateTime(Date())
 
         // Fix 1b: check completeSession result
         val completed = workoutRepo.completeSession(sessionId, now)

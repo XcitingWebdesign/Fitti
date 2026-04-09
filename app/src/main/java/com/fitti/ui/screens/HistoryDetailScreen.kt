@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,8 +17,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,7 +27,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,8 +41,8 @@ import com.fitti.data.WeightLogDao
 import com.fitti.data.WorkoutSessionRepository
 import com.fitti.ui.HistoryDetailViewModel
 import com.fitti.ui.HistoryDetailViewModelFactory
-import kotlinx.coroutines.launch
 
+import com.fitti.ui.common.AiFeedbackSection
 import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.muscleGroupLabels
@@ -64,10 +60,6 @@ fun HistoryDetailScreen(
         factory = HistoryDetailViewModelFactory(sessionId, workoutRepo)
     )
     val state by vm.uiState.collectAsState()
-    val scope = rememberCoroutineScope()
-    var aiFeedback by remember { mutableStateOf<String?>(null) }
-    var isLoadingFeedback by remember { mutableStateOf(false) }
-    var feedbackError by remember { mutableStateOf<String?>(null) }
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -167,88 +159,17 @@ fun HistoryDetailScreen(
             // KI-Feedback section
             if (hasApiKey) {
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Spacer(Modifier.height(8.dp))
-
-                        if (aiFeedback == null && !isLoadingFeedback) {
-                            FilledTonalButton(
-                                onClick = {
-                                    isLoadingFeedback = true
-                                    feedbackError = null
-                                    scope.launch {
-                                        val weight = weightLogDao.getLatest()?.weightKg
-                                        val service = ClaudeApiService(settingsRepo.claudeApiKey)
-                                        service.getWorkoutFeedback(
-                                            history = history,
-                                            userGoal = settingsRepo.goal,
-                                            latestWeightKg = weight
-                                        ).onSuccess { feedback ->
-                                            aiFeedback = feedback
-                                        }.onFailure { e ->
-                                            feedbackError = "Fehler: ${e.message}"
-                                        }
-                                        isLoadingFeedback = false
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    "KI-Feedback",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                            }
-                        }
-
-                        if (isLoadingFeedback) {
-                            Spacer(Modifier.height(16.dp))
-                            CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "Analyse l\u00e4uft...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    AiFeedbackSection(
+                        onRequestFeedback = {
+                            val weight = weightLogDao.getLatest()?.weightKg
+                            val service = ClaudeApiService(settingsRepo.claudeApiKey)
+                            service.getWorkoutFeedback(
+                                history = history,
+                                userGoal = settingsRepo.goal,
+                                latestWeightKg = weight
                             )
                         }
-
-                        if (feedbackError != null) {
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = feedbackError!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-
-                        if (aiFeedback != null) {
-                            Spacer(Modifier.height(12.dp))
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "KI-Feedback",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(
-                                        text = aiFeedback!!,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    )
                 }
             }
         }

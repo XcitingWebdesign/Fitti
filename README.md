@@ -9,7 +9,7 @@ Die App dient langfristig als Datengrundlage f\u00fcr einen LLM-basierten Person
 ## Status: MVP implementiert
 
 - \u2705 4 Screens: Home, Active Workout, History Detail, Settings
-- \u2705 7 Nautilus-Maschinen mit Muskelgruppen (Brust, R\u00fccken, Beine, Schultern)
+- \u2705 8 Nautilus-Maschinen mit Muskelgruppen (Brust, R\u00fccken, Beine, Schultern, Bauch)
 - \u2705 Kartenspiel-Metapher: eine \u00dcbung nach der anderen
 - \u2705 One-Tap Set-Logging mit Rest-Timer (Sound + Vibration)
 - \u2705 Manuelle Progressionsentscheidung nach allen S\u00e4tzen
@@ -18,12 +18,19 @@ Die App dient langfristig als Datengrundlage f\u00fcr einen LLM-basierten Person
 - \u2705 Periodische K\u00f6rpergewichts-Abfrage
 - \u2705 Einstellungen: Rep-Range, S\u00e4tze, Pause, Progression, Ziel, Gr\u00f6\u00dfe
 - \u2705 Dark Theme, Portrait-Lock, Screen-Always-On
-- \u2705 Room-Datenbank mit Migrationen (v1 \u2192 v2 \u2192 v3 \u2192 v4)
+- \u2705 Room-Datenbank mit Migrationen (v1 \u2192 v2 \u2192 v3 \u2192 v4 \u2192 v5)
 - \u2705 Wiederholungen pro Satz loggen (8-12 Auswahl)
 - \u2705 Gewichtssteigerung pro Maschine individuell (ExerciseEntity.progressionStepKg)
 - \u2705 Reihenfolge im Zirkel anpassbar (sortOrder, Hoch/Runter in Settings)
 - \u2705 Freitext-Ziel im Profil (mehrzeiliges Eingabefeld)
 - \u2705 Claude API-Schl\u00fcssel Speicherung in Einstellungen
+- \u2705 Ger\u00e4te hinzuf\u00fcgen/entfernen in Einstellungen
+- \u2705 Export/Import (JSON via Share Sheet / Datei-Picker)
+- \u2705 Sitz- und Polsterposition pro Ger\u00e4t
+- \u2705 Nautilus Gewichtsstufen-Stack pro Ger\u00e4t
+- \u2705 K\u00f6rpergewichts-Verlaufsgraph auf Home Screen
+- \u2705 KI-Feedback nach dem Training + w\u00f6chentliche Analyse
+- \u2705 GitHub Actions CI/CD
 
 ## Kernfunktionen
 
@@ -74,8 +81,4 @@ Oder: Projekt in Android Studio \u00f6ffnen \u2192 Run auf verbundenem Ger\u00e4
 - Keine Smartwatch-Integration
 
 ## Geplante Verbesserungen
-- KI-Feedback nach dem Training (via Claude API)
-- W\u00f6chentliche KI-Trainingsanalyse
-- Export-Funktion (JSON) f\u00fcr LLM-Trainer
-- K\u00f6rpergewichts-Verlaufsgraph
-- Custom \u00dcbungen hinzuf\u00fcgen/entfernen
+- Detailliertere KI-Trainingsanalyse (Trends \u00fcber mehrere Wochen)

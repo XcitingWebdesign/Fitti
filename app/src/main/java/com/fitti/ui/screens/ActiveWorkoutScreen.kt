@@ -40,25 +40,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import com.fitti.data.ClaudeApiService
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.SessionExerciseEntity
 import com.fitti.data.SettingsRepository
-import com.fitti.data.SetLogEntity
 import com.fitti.data.WeightLogDao
 import com.fitti.data.WorkoutSessionRepository
 import com.fitti.ui.ActiveWorkoutUiState
 import com.fitti.ui.ActiveWorkoutViewModel
 import com.fitti.ui.ActiveWorkoutViewModelFactory
 import com.fitti.ui.SessionSummary
-import kotlinx.coroutines.launch
 import com.fitti.ui.TimerState
 
+import com.fitti.ui.common.AiFeedbackSection
 import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.muscleGroupLabels
 
@@ -500,10 +494,6 @@ private fun WorkoutSummaryContent(
     weightLogDao: WeightLogDao,
     onFinish: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    var aiFeedback by remember { mutableStateOf<String?>(null) }
-    var isLoadingFeedback by remember { mutableStateOf(false) }
-    var feedbackError by remember { mutableStateOf<String?>(null) }
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
 
     Scaffold { innerPadding ->
@@ -594,94 +584,20 @@ private fun WorkoutSummaryContent(
             // KI-Feedback section
             if (hasApiKey) {
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Spacer(Modifier.height(24.dp))
-
-                        if (aiFeedback == null && !isLoadingFeedback) {
-                            FilledTonalButton(
-                                onClick = {
-                                    isLoadingFeedback = true
-                                    feedbackError = null
-                                    scope.launch {
-                                        val history = workoutRepo.getSessionHistory(sessionId)
-                                        if (history == null) {
-                                            feedbackError = "Training nicht gefunden."
-                                            isLoadingFeedback = false
-                                            return@launch
-                                        }
-                                        val weight = weightLogDao.getLatest()?.weightKg
-                                        val service = ClaudeApiService(settingsRepo.claudeApiKey)
-                                        service.getWorkoutFeedback(
-                                            history = history,
-                                            userGoal = settingsRepo.goal,
-                                            latestWeightKg = weight
-                                        ).onSuccess { feedback ->
-                                            aiFeedback = feedback
-                                        }.onFailure { e ->
-                                            feedbackError = "Fehler: ${e.message}"
-                                        }
-                                        isLoadingFeedback = false
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    "KI-Feedback",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                            }
-                        }
-
-                        if (isLoadingFeedback) {
-                            Spacer(Modifier.height(16.dp))
-                            CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "Analyse l\u00e4uft...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Spacer(Modifier.height(24.dp))
+                    AiFeedbackSection(
+                        onRequestFeedback = {
+                            val history = workoutRepo.getSessionHistory(sessionId)
+                                ?: return@AiFeedbackSection Result.failure(Exception("Training nicht gefunden."))
+                            val weight = weightLogDao.getLatest()?.weightKg
+                            val service = ClaudeApiService(settingsRepo.claudeApiKey)
+                            service.getWorkoutFeedback(
+                                history = history,
+                                userGoal = settingsRepo.goal,
+                                latestWeightKg = weight
                             )
                         }
-
-                        if (feedbackError != null) {
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = feedbackError!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-
-                        if (aiFeedback != null) {
-                            Spacer(Modifier.height(12.dp))
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "KI-Feedback",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(
-                                        text = aiFeedback!!,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    )
                 }
             }
 

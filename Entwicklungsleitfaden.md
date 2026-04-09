@@ -48,7 +48,7 @@ Alle Kernfunktionen m\u00fcssen ohne Internet funktionieren.
 - **Sprache:** Kotlin
 - **UI:** Jetpack Compose (Material3, Dark Theme)
 - **Architektur:** MVVM + Use-Case-orientierte Domain
-- **Persistenz:** Room (SQLite, Version 4)
+- **Persistenz:** Room (SQLite, Version 5)
 - **Navigation:** Navigation Compose (4 Routes)
 - **Asynchronit\u00e4t:** Coroutines + Flow
 - **Build:** Gradle Kotlin DSL
@@ -88,12 +88,19 @@ Alle Kernfunktionen m\u00fcssen ohne Internet funktionieren.
 | D3 | Shoulder Press | Schultern |
 | D4 | Leg Extension | Beine |
 | F3 | Lat Pulldown | R\u00fccken |
+| F6 | Ab Crunch | Bauch |
 
-Unterst\u00fctzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme)
+Unterst\u00fctzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 
-### Geplant
-- Ger\u00e4te hinzuf\u00fcgen/entfernen (z.B. Bizeps-Curl, Trizeps, Adduktoren)
-- Export/Import f\u00fcr Ger\u00e4tewechsel
+### Weitere implementierte Features
+- Ger\u00e4te hinzuf\u00fcgen/entfernen in Einstellungen (Add-Dialog mit Muskelgruppe, Delete mit Best\u00e4tigung)
+- Export/Import f\u00fcr Ger\u00e4tewechsel (JSON via Android Share Sheet / Datei-Picker)
+- Sitz- und Polsterposition pro Ger\u00e4t (seatPosition/padPosition)
+- Nautilus Gewichtsstufen-Stack pro Ger\u00e4t (weightSteps)
+- K\u00f6rpergewichts-Verlaufsgraph auf Home Screen
+- Dreiklang-Sound bei Timer-Ende (ToneGenerator)
+- Claude API-Schl\u00fcssel Speicherung + KI-Feedback
+- GitHub Actions CI/CD
 
 ---
 
