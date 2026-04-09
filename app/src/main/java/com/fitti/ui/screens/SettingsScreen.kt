@@ -48,12 +48,18 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fitti.data.ExerciseEntity
 import com.fitti.data.ExerciseRepository
+import com.fitti.data.SessionExerciseEntity
+import com.fitti.data.SetLogEntity
 import com.fitti.data.SettingsRepository
 import com.fitti.data.WeightLogDao
 import com.fitti.data.WeightLogEntity
+import com.fitti.data.WorkoutSessionDao
+import com.fitti.data.WorkoutSessionEntity
 import com.fitti.domain.Exercise
 import com.fitti.ui.common.muscleGroupLabels
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -68,6 +74,7 @@ fun SettingsScreen(
     settingsRepo: SettingsRepository,
     weightLogDao: WeightLogDao,
     exerciseRepo: ExerciseRepository,
+    workoutSessionDao: WorkoutSessionDao,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -94,6 +101,20 @@ fun SettingsScreen(
     var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
     // Import status message
     var importMessage by remember { mutableStateOf("") }
+    // Full backup status message
+    var backupMessage by remember { mutableStateOf("") }
+    // Full backup confirm dialog
+    var showRestoreConfirm by remember { mutableStateOf(false) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+
+    // File picker for full backup import
+    val fullBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        pendingRestoreUri = uri
+        showRestoreConfirm = true
+    }
 
     // File picker for import
     val importLauncher = rememberLauncherForActivityResult(
@@ -442,7 +463,65 @@ fun SettingsScreen(
                 )
             }
 
+            // Full backup
             item {
+                Text(
+                    text = "Komplett-Backup (alle Daten)",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Sichert Ger\u00e4te, Trainingshistorie, K\u00f6rpergewicht und Einstellungen.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                val json = exportFullBackup(
+                                    exerciseRepo, workoutSessionDao, weightLogDao, settingsRepo
+                                )
+                                shareText(context, json, "fitti_backup_${
+                                    SimpleDateFormat("yyyyMMdd", Locale.GERMANY).format(Date())
+                                }.json")
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Backup erstellen")
+                    }
+                    OutlinedButton(
+                        onClick = { fullBackupLauncher.launch("*/*") },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Backup laden")
+                    }
+                }
+                if (backupMessage.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = backupMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Device-only export/import
+            item {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Nur Ger\u00e4te",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -457,13 +536,13 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Ger\u00e4te exportieren")
+                        Text("Exportieren")
                     }
                     OutlinedButton(
-                        onClick = { importLauncher.launch("application/json") },
+                        onClick = { importLauncher.launch("*/*") },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Ger\u00e4te importieren")
+                        Text("Importieren")
                     }
                 }
                 if (importMessage.isNotEmpty()) {
@@ -581,6 +660,54 @@ fun SettingsScreen(
                     exerciseRepo.addExercise(entity.copy(sortOrder = maxSort + 1))
                 }
                 showAddDialog = false
+            }
+        )
+    }
+
+    // Restore Confirmation Dialog
+    if (showRestoreConfirm && pendingRestoreUri != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showRestoreConfirm = false
+                pendingRestoreUri = null
+            },
+            title = { Text("Backup wiederherstellen") },
+            text = {
+                Text("Alle aktuellen Daten werden durch das Backup ersetzt. Dieser Vorgang kann nicht r\u00fcckg\u00e4ngig gemacht werden.\n\nFortfahren?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uri = pendingRestoreUri!!
+                        showRestoreConfirm = false
+                        pendingRestoreUri = null
+                        scope.launch {
+                            try {
+                                val json = context.contentResolver.openInputStream(uri)
+                                    ?.bufferedReader()?.use { it.readText() } ?: return@launch
+                                val count = importFullBackup(
+                                    json, exerciseRepo, workoutSessionDao, weightLogDao, settingsRepo
+                                )
+                                backupMessage = "Backup wiederhergestellt ($count Trainings)"
+                            } catch (e: Exception) {
+                                backupMessage = "Wiederherstellung fehlgeschlagen: ${e.message}"
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Wiederherstellen")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showRestoreConfirm = false
+                    pendingRestoreUri = null
+                }) {
+                    Text("Abbrechen")
+                }
             }
         )
     }
@@ -833,6 +960,250 @@ private fun parseExercisesJson(json: String): List<ExerciseEntity> {
         )
     }
     return result
+}
+
+private suspend fun exportFullBackup(
+    exerciseRepo: ExerciseRepository,
+    workoutSessionDao: WorkoutSessionDao,
+    weightLogDao: WeightLogDao,
+    settingsRepo: SettingsRepository
+): String = withContext(Dispatchers.IO) {
+    val root = JSONObject()
+    root.put("type", "full_backup")
+    root.put("version", 1)
+    val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
+    root.put("exportedAt", dateFormat.format(Date()))
+
+    // Settings
+    val settings = JSONObject()
+    settings.put("repsMin", settingsRepo.repsMin)
+    settings.put("repsMax", settingsRepo.repsMax)
+    settings.put("sets", settingsRepo.sets)
+    settings.put("restSeconds", settingsRepo.restSeconds)
+    settings.put("progressionStepKg", settingsRepo.progressionStepKg)
+    settings.put("heightCm", settingsRepo.heightCm)
+    settings.put("goal", settingsRepo.goal)
+    root.put("settings", settings)
+
+    // Exercises
+    val exercises = exerciseRepo.getAllEntities()
+    val exercisesArr = JSONArray()
+    for (e in exercises) {
+        val obj = JSONObject()
+        obj.put("id", e.id)
+        obj.put("code", e.code)
+        obj.put("brand", e.brand)
+        obj.put("displayName", e.displayName)
+        obj.put("muscleGroup", e.muscleGroup)
+        obj.put("currentWeight", e.currentWeight)
+        obj.put("weightUnit", e.weightUnit)
+        obj.put("recordedOn", e.recordedOn)
+        obj.put("progressionStepKg", e.progressionStepKg)
+        obj.put("sortOrder", e.sortOrder)
+        obj.put("seatPosition", e.seatPosition)
+        obj.put("padPosition", e.padPosition)
+        obj.put("weightSteps", e.weightSteps)
+        exercisesArr.put(obj)
+    }
+    root.put("exercises", exercisesArr)
+
+    // Workout sessions
+    val sessions = workoutSessionDao.getAllSessions()
+    val sessionsArr = JSONArray()
+    for (s in sessions) {
+        val obj = JSONObject()
+        obj.put("id", s.id)
+        obj.put("startedAt", s.startedAt)
+        obj.put("completedAt", s.completedAt ?: JSONObject.NULL)
+        obj.put("status", s.status)
+        sessionsArr.put(obj)
+    }
+    root.put("workoutSessions", sessionsArr)
+
+    // Session exercises
+    val sessionExercises = workoutSessionDao.getAllSessionExercises()
+    val seArr = JSONArray()
+    for (se in sessionExercises) {
+        val obj = JSONObject()
+        obj.put("id", se.id)
+        obj.put("sessionId", se.sessionId)
+        obj.put("exerciseId", se.exerciseId)
+        obj.put("exerciseCode", se.exerciseCode)
+        obj.put("exerciseDisplayName", se.exerciseDisplayName)
+        obj.put("exerciseMuscleGroup", se.exerciseMuscleGroup)
+        obj.put("exerciseSeatPosition", se.exerciseSeatPosition)
+        obj.put("exercisePadPosition", se.exercisePadPosition)
+        obj.put("targetWeight", se.targetWeight)
+        obj.put("targetRepsMin", se.targetRepsMin)
+        obj.put("targetReps", se.targetReps)
+        obj.put("targetSets", se.targetSets)
+        obj.put("plannedRestSeconds", se.plannedRestSeconds)
+        obj.put("progressionStepKg", se.progressionStepKg)
+        obj.put("weightSteps", se.weightSteps)
+        seArr.put(obj)
+    }
+    root.put("sessionExercises", seArr)
+
+    // Set logs
+    val setLogs = workoutSessionDao.getAllSetLogs()
+    val slArr = JSONArray()
+    for (sl in setLogs) {
+        val obj = JSONObject()
+        obj.put("id", sl.id)
+        obj.put("sessionExerciseId", sl.sessionExerciseId)
+        obj.put("setNumber", sl.setNumber)
+        obj.put("actualWeightKg", sl.actualWeightKg)
+        obj.put("actualReps", sl.actualReps)
+        obj.put("completedFlag", sl.completedFlag)
+        slArr.put(obj)
+    }
+    root.put("setLogs", slArr)
+
+    // Weight logs
+    val weightLogs = weightLogDao.getAll()
+    val wlArr = JSONArray()
+    for (wl in weightLogs) {
+        val obj = JSONObject()
+        obj.put("id", wl.id)
+        obj.put("weightKg", wl.weightKg)
+        obj.put("loggedAt", wl.loggedAt)
+        wlArr.put(obj)
+    }
+    root.put("weightLogs", wlArr)
+
+    root.toString(2)
+}
+
+private suspend fun importFullBackup(
+    json: String,
+    exerciseRepo: ExerciseRepository,
+    workoutSessionDao: WorkoutSessionDao,
+    weightLogDao: WeightLogDao,
+    settingsRepo: SettingsRepository
+): Int = withContext(Dispatchers.IO) {
+    val root = JSONObject(json)
+    require(root.optString("type") == "full_backup") { "Keine g\u00fcltige Backup-Datei" }
+
+    // Restore settings
+    val settings = root.optJSONObject("settings")
+    if (settings != null) {
+        settingsRepo.repsMin = settings.optInt("repsMin", 8)
+        settingsRepo.repsMax = settings.optInt("repsMax", 12)
+        settingsRepo.sets = settings.optInt("sets", 2)
+        settingsRepo.restSeconds = settings.optInt("restSeconds", 60)
+        settingsRepo.progressionStepKg = settings.optDouble("progressionStepKg", 2.5)
+        settingsRepo.heightCm = settings.optInt("heightCm", 0)
+        settingsRepo.goal = settings.optString("goal", "")
+    }
+
+    // Clear existing data (order matters for foreign keys)
+    workoutSessionDao.deleteAllSetLogs()
+    workoutSessionDao.deleteAllSessionExercises()
+    workoutSessionDao.deleteAllSessions()
+    weightLogDao.deleteAll()
+
+    // Import exercises
+    val exercisesArr = root.getJSONArray("exercises")
+    val exercises = mutableListOf<ExerciseEntity>()
+    for (i in 0 until exercisesArr.length()) {
+        val obj = exercisesArr.getJSONObject(i)
+        exercises.add(
+            ExerciseEntity(
+                id = obj.getLong("id"),
+                code = obj.getString("code"),
+                brand = obj.optString("brand", ""),
+                displayName = obj.optString("displayName", ""),
+                muscleGroup = obj.optString("muscleGroup", ""),
+                currentWeight = obj.getDouble("currentWeight"),
+                weightUnit = obj.optString("weightUnit", "kg"),
+                recordedOn = obj.optString("recordedOn", ""),
+                progressionStepKg = obj.optDouble("progressionStepKg", 2.5),
+                sortOrder = obj.optInt("sortOrder", i),
+                seatPosition = obj.optString("seatPosition", ""),
+                padPosition = obj.optString("padPosition", ""),
+                weightSteps = obj.optString("weightSteps", "")
+            )
+        )
+    }
+    exerciseRepo.replaceAll(exercises)
+
+    // Import workout sessions
+    val sessionsArr = root.getJSONArray("workoutSessions")
+    val sessions = mutableListOf<WorkoutSessionEntity>()
+    for (i in 0 until sessionsArr.length()) {
+        val obj = sessionsArr.getJSONObject(i)
+        sessions.add(
+            WorkoutSessionEntity(
+                id = obj.getLong("id"),
+                startedAt = obj.getString("startedAt"),
+                completedAt = if (obj.isNull("completedAt")) null else obj.getString("completedAt"),
+                status = obj.getString("status")
+            )
+        )
+    }
+    workoutSessionDao.insertSessions(sessions)
+
+    // Import session exercises
+    val seArr = root.getJSONArray("sessionExercises")
+    val sessionExercises = mutableListOf<SessionExerciseEntity>()
+    for (i in 0 until seArr.length()) {
+        val obj = seArr.getJSONObject(i)
+        sessionExercises.add(
+            SessionExerciseEntity(
+                id = obj.getLong("id"),
+                sessionId = obj.getLong("sessionId"),
+                exerciseId = obj.getLong("exerciseId"),
+                exerciseCode = obj.getString("exerciseCode"),
+                exerciseDisplayName = obj.optString("exerciseDisplayName", ""),
+                exerciseMuscleGroup = obj.optString("exerciseMuscleGroup", ""),
+                exerciseSeatPosition = obj.optString("exerciseSeatPosition", ""),
+                exercisePadPosition = obj.optString("exercisePadPosition", ""),
+                targetWeight = obj.getDouble("targetWeight"),
+                targetRepsMin = obj.optInt("targetRepsMin", 8),
+                targetReps = obj.getInt("targetReps"),
+                targetSets = obj.getInt("targetSets"),
+                plannedRestSeconds = obj.getInt("plannedRestSeconds"),
+                progressionStepKg = obj.getDouble("progressionStepKg"),
+                weightSteps = obj.optString("weightSteps", "")
+            )
+        )
+    }
+    workoutSessionDao.insertSessionExercises(sessionExercises)
+
+    // Import set logs
+    val slArr = root.getJSONArray("setLogs")
+    val setLogs = mutableListOf<SetLogEntity>()
+    for (i in 0 until slArr.length()) {
+        val obj = slArr.getJSONObject(i)
+        setLogs.add(
+            SetLogEntity(
+                id = obj.getLong("id"),
+                sessionExerciseId = obj.getLong("sessionExerciseId"),
+                setNumber = obj.getInt("setNumber"),
+                actualWeightKg = obj.getDouble("actualWeightKg"),
+                actualReps = obj.getInt("actualReps"),
+                completedFlag = obj.getBoolean("completedFlag")
+            )
+        )
+    }
+    workoutSessionDao.insertSetLogs(setLogs)
+
+    // Import weight logs
+    val wlArr = root.getJSONArray("weightLogs")
+    val weightLogs = mutableListOf<WeightLogEntity>()
+    for (i in 0 until wlArr.length()) {
+        val obj = wlArr.getJSONObject(i)
+        weightLogs.add(
+            WeightLogEntity(
+                id = obj.getLong("id"),
+                weightKg = obj.getDouble("weightKg"),
+                loggedAt = obj.getString("loggedAt")
+            )
+        )
+    }
+    weightLogDao.insertAll(weightLogs)
+
+    sessions.size
 }
 
 private fun shareText(context: Context, text: String, filename: String) {
