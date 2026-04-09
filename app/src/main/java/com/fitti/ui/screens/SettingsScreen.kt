@@ -56,6 +56,7 @@ import com.fitti.data.WeightLogEntity
 import com.fitti.data.WorkoutSessionDao
 import com.fitti.data.WorkoutSessionEntity
 import com.fitti.domain.Exercise
+import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.muscleGroupLabels
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -92,6 +93,7 @@ fun SettingsScreen(
     var lastWeightInfo by remember { mutableStateOf("") }
     var exercises by remember { mutableStateOf(emptyList<Exercise>()) }
     var exerciseSteps by remember { mutableStateOf(emptyMap<Long, String>()) }
+    var exerciseWeights by remember { mutableStateOf(emptyMap<Long, String>()) }
     var exerciseSeats by remember { mutableStateOf(emptyMap<Long, String>()) }
     var exercisePads by remember { mutableStateOf(emptyMap<Long, String>()) }
 
@@ -401,11 +403,21 @@ fun SettingsScreen(
                             )
                         }
 
+                        // Current weight
+                        OutlinedTextField(
+                            value = exerciseWeights[exercise.id] ?: exercise.currentWeight.cleanWeight(),
+                            onValueChange = { exerciseWeights = exerciseWeights + (exercise.id to it) },
+                            label = { Text(exercise.weightUnit) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.width(80.dp),
+                            singleLine = true
+                        )
+
                         // Per-exercise progression step
                         OutlinedTextField(
                             value = exerciseSteps[exercise.id] ?: exercise.progressionStepKg.toString(),
                             onValueChange = { exerciseSteps = exerciseSteps + (exercise.id to it) },
-                            label = { Text("kg") },
+                            label = { Text("+kg") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.width(72.dp),
                             singleLine = true
@@ -617,6 +629,8 @@ fun SettingsScreen(
                         settingsRepo.progressionStepKg = validStep
 
                         scope.launch {
+                            val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
+                            val today = dateFormat.format(Date())
                             exercises.forEachIndexed { idx, ex ->
                                 exerciseRepo.updateSortOrder(ex.id, idx)
                                 val stepText = exerciseSteps[ex.id] ?: ex.progressionStepKg.toString()
@@ -625,6 +639,13 @@ fun SettingsScreen(
                                 val seat = exerciseSeats[ex.id] ?: ex.seatPosition
                                 val pad = exercisePads[ex.id] ?: ex.padPosition
                                 exerciseRepo.updatePositions(ex.id, seat.trim(), pad.trim())
+                                val weightText = exerciseWeights[ex.id]
+                                if (weightText != null) {
+                                    val w = weightText.replace(",", ".").toDoubleOrNull()
+                                    if (w != null && w > 0) {
+                                        exerciseRepo.updateWeight(ex.id, w, today)
+                                    }
+                                }
                             }
                         }
 

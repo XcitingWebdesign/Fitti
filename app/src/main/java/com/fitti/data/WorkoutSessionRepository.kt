@@ -44,4 +44,7 @@ class WorkoutSessionRepository(
 
     fun observeSessionHistories(): Flow<List<WorkoutSessionHistory>> =
         dao.observeSessionHistories()
+
+    suspend fun deleteSession(sessionId: Long) =
+        dao.deleteSession(sessionId)
 }

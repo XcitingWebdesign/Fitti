@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,6 +69,11 @@ fun HistoryDetailScreen(
     var isLoadingFeedback by remember { mutableStateOf(false) }
     var feedbackError by remember { mutableStateOf<String?>(null) }
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.deleted) {
+        if (state.deleted) onBack()
+    }
 
     Scaffold { innerPadding ->
         if (state.isLoading) {
@@ -104,12 +113,20 @@ fun HistoryDetailScreen(
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     TextButton(onClick = onBack) {
                         Text(
                             "\u2190 Zur\u00fcck",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    TextButton(onClick = { showDeleteConfirm = true }) {
+                        Text(
+                            "L\u00f6schen",
+                            color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
@@ -235,6 +252,32 @@ fun HistoryDetailScreen(
                 }
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Training l\u00f6schen") },
+            text = { Text("Dieses Training wirklich l\u00f6schen? Dieser Vorgang kann nicht r\u00fcckg\u00e4ngig gemacht werden.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirm = false
+                        vm.deleteSession()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("L\u00f6schen")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Abbrechen")
+                }
+            }
+        )
     }
 }
 
