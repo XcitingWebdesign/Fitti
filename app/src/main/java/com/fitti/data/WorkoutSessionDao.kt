@@ -54,6 +54,31 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions WHERE status = 'COMPLETED' ORDER BY completedAt DESC")
     fun observeSessionHistories(): Flow<List<WorkoutSessionHistory>>
 
+    // Full backup queries
+    @Query("SELECT * FROM workout_sessions ORDER BY id ASC")
+    suspend fun getAllSessions(): List<WorkoutSessionEntity>
+
+    @Query("SELECT * FROM session_exercises ORDER BY id ASC")
+    suspend fun getAllSessionExercises(): List<SessionExerciseEntity>
+
+    @Query("SELECT * FROM set_logs ORDER BY id ASC")
+    suspend fun getAllSetLogs(): List<SetLogEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSessions(sessions: List<WorkoutSessionEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSetLogs(setLogs: List<SetLogEntity>)
+
+    @Query("DELETE FROM set_logs")
+    suspend fun deleteAllSetLogs()
+
+    @Query("DELETE FROM session_exercises")
+    suspend fun deleteAllSessionExercises()
+
+    @Query("DELETE FROM workout_sessions")
+    suspend fun deleteAllSessions()
+
     @Transaction
     suspend fun startSession(
         startedAt: String,

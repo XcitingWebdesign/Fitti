@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
                             settingsRepo = settingsRepo,
                             weightLogDao = weightLogDao,
                             exerciseRepo = exerciseRepo,
+                            workoutSessionDao = database.workoutSessionDao(),
                             onBack = { navController.popBackStack() }
                         )
                     }

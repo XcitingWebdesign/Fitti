@@ -24,4 +24,10 @@ interface WeightLogDao {
 
     @Query("SELECT * FROM weight_logs ORDER BY id DESC")
     suspend fun getAll(): List<WeightLogEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(logs: List<WeightLogEntity>)
+
+    @Query("DELETE FROM weight_logs")
+    suspend fun deleteAll()
 }
