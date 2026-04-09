@@ -12,12 +12,13 @@ import kotlinx.coroutines.launch
 
 data class HistoryDetailUiState(
     val history: WorkoutSessionHistory? = null,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val deleted: Boolean = false
 )
 
 class HistoryDetailViewModel(
-    sessionId: Long,
-    workoutRepo: WorkoutSessionRepository
+    private val sessionId: Long,
+    private val workoutRepo: WorkoutSessionRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HistoryDetailUiState())
@@ -27,6 +28,13 @@ class HistoryDetailViewModel(
         viewModelScope.launch {
             val history = workoutRepo.getSessionHistory(sessionId)
             _uiState.value = HistoryDetailUiState(history = history, isLoading = false)
+        }
+    }
+
+    fun deleteSession() {
+        viewModelScope.launch {
+            workoutRepo.deleteSession(sessionId)
+            _uiState.value = _uiState.value.copy(deleted = true)
         }
     }
 }
