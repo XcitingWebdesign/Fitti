@@ -254,6 +254,138 @@ class ClaudeApiService(private val apiKey: String) {
         appendLine("S\u00e4tze pro Muskelgruppe: ${muscleGroups.entries.joinToString(", ") { "${it.key}: ${it.value}" }}")
     }
 
+    suspend fun getWeeklyCoaching(
+        sessions: List<WorkoutSessionHistory>,
+        userGoal: String,
+        latestWeightKg: Double?,
+        heightCm: Int = 0,
+        allHistories: List<WorkoutSessionHistory> = emptyList(),
+        weightLogs: List<WeightLogEntity> = emptyList(),
+        previousCoaching: String? = null
+    ): Result<String> {
+        val systemPrompt = "Du bist ein erfahrener Personal Trainer und Ziel-Coach f\u00fcr Zirkeltraining an Maschinen (Nautilus).\n" +
+                "Dein Klient trainiert regelm\u00e4\u00dfig an Kraftmaschinen im Zirkel und hat dir seine Vision anvertraut.\n\n" +
+                "Deine Aufgabe ist es, als pers\u00f6nlicher Coach zu fungieren, der:\n" +
+                "1. Die Vision/das Ziel des Klienten ernst nimmt und in erreichbare Teilziele \u00fcbersetzt\n" +
+                "2. Den Fortschritt bei jedem Coaching anhand konkreter Messwerte bewertet\n" +
+                "3. Kontinuit\u00e4t zwischen Coaching-Sitzungen wahrt\n\n" +
+                "AUSGABEFORMAT (halte dich strikt daran):\n\n" +
+                "## Deine Vision\n" +
+                "[Wiederhole kurz die Vision des Klienten und ordne sie ein \u2013 was bedeutet sie konkret f\u00fcr das Training?]\n\n" +
+                "## Teilziele\n" +
+                "[3\u20135 messbare Teilziele, die zur Vision beitragen. Jedes Teilziel mit aktuellem Status:]\n" +
+                "- Teilziel 1: [Beschreibung] \u2192 Status: [Bewertung anhand der Daten]\n" +
+                "- Teilziel 2: [Beschreibung] \u2192 Status: [Bewertung anhand der Daten]\n" +
+                "- ...\n\n" +
+                "## Wochenr\u00fcckblick\n" +
+                "[Analyse der letzten Woche: Was lief gut? Was kann besser werden? Konsistenz, Progression, Intensit\u00e4t]\n\n" +
+                "## Fortschritt seit letztem Coaching\n" +
+                "[Nur wenn vorheriges Coaching vorhanden: Was hat sich seit dem letzten Coaching ver\u00e4ndert? Wurden die Empfehlungen umgesetzt?]\n\n" +
+                "## N\u00e4chste Schritte\n" +
+                "[2\u20133 konkrete, umsetzbare Aktionen f\u00fcr die n\u00e4chste Woche. Nenne spezifische \u00dcbungen und Gewichte.]\n\n" +
+                "Wichtige Regeln:\n" +
+                "- Antworte immer auf Deutsch\n" +
+                "- Sei direkt, ehrlich und motivierend\n" +
+                "- Nenne \u00dcbungen immer beim Namen\n" +
+                "- Verwende die tats\u00e4chlichen Zahlen aus den Trainingsdaten\n" +
+                "- Wenn kein Ziel gesetzt ist, empfiehl dem Klienten, eines zu setzen, und arbeite trotzdem mit den verf\u00fcgbaren Daten\n" +
+                "- Wenn kein vorheriges Coaching vorhanden ist, \u00fcberspringe den Abschnitt \"Fortschritt seit letztem Coaching\""
+
+        val userMessage = buildString {
+            appendLine("=== Trainings der letzten Woche (${sessions.size} Einheiten) ===")
+            appendLine()
+            sessions.forEachIndexed { index, history ->
+                appendLine("--- Training ${index + 1} ---")
+                appendLine(formatSessionData(history))
+                appendLine()
+            }
+
+            appendLine("=== Trainingsmetriken ===")
+            appendLine(formatTrainingMetrics(sessions, allHistories))
+            appendLine()
+
+            val historiesForSummary = if (allHistories.isNotEmpty()) allHistories else sessions
+            if (historiesForSummary.size > sessions.size) {
+                appendLine(formatHistoricalSummary(historiesForSummary, weightLogs))
+                appendLine()
+            }
+            appendLine(formatProfile(userGoal, latestWeightKg, heightCm))
+
+            if (previousCoaching != null) {
+                appendLine()
+                appendLine("=== Letztes Coaching ===")
+                appendLine(previousCoaching)
+            }
+        }
+
+        return callClaudeWithThinking(systemPrompt, userMessage)
+    }
+
+    private fun formatTrainingMetrics(
+        recentSessions: List<WorkoutSessionHistory>,
+        allHistories: List<WorkoutSessionHistory>
+    ): String = buildString {
+        val fmt = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.GERMANY)
+
+        // Consistency rate (sessions per week over last 4 weeks)
+        if (allHistories.size >= 2) {
+            val fourWeeksAgo = System.currentTimeMillis() - (28L * 86400000)
+            val recent4w = allHistories.filter { h ->
+                val d = fmt.parse(h.session.completedAt ?: h.session.startedAt)
+                d != null && d.time >= fourWeeksAgo
+            }
+            val weeks = 4.0
+            appendLine("Konsistenz (letzte 4 Wochen): ${recent4w.size} Einheiten (\u00d8 ${"%.1f".format(recent4w.size / weeks)}x/Woche)")
+        }
+
+        // Per-exercise progression rate (weight change per month)
+        val exerciseFirstLast = mutableMapOf<String, Pair<Pair<Long, Double>, Pair<Long, Double>>>()
+        for (history in allHistories.sortedBy { it.session.startedAt }) {
+            val date = fmt.parse(history.session.completedAt ?: history.session.startedAt) ?: continue
+            for (exWithLogs in history.sessionExercises) {
+                val name = exWithLogs.sessionExercise.exerciseDisplayName.ifEmpty { exWithLogs.sessionExercise.exerciseCode }
+                val maxWeight = exWithLogs.setLogs.maxOfOrNull { it.actualWeightKg } ?: continue
+                val existing = exerciseFirstLast[name]
+                if (existing == null) {
+                    exerciseFirstLast[name] = (date.time to maxWeight) to (date.time to maxWeight)
+                } else {
+                    exerciseFirstLast[name] = existing.first to (date.time to maxWeight)
+                }
+            }
+        }
+
+        if (exerciseFirstLast.isNotEmpty()) {
+            appendLine("Progressionsrate pro \u00dcbung:")
+            for ((name, pair) in exerciseFirstLast) {
+                val (first, last) = pair
+                val daysDiff = ((last.first - first.first) / 86400000.0).coerceAtLeast(1.0)
+                val weightDiff = last.second - first.second
+                val monthlyRate = weightDiff / daysDiff * 30.0
+                if (daysDiff >= 7) {
+                    appendLine("- $name: ${"%.1f".format(monthlyRate)} kg/Monat (${"%.1f".format(first.second)} \u2192 ${"%.1f".format(last.second)} kg in ${daysDiff.toInt()} Tagen)")
+                }
+            }
+        }
+
+        // Rep quality: % of sets completed
+        if (recentSessions.isNotEmpty()) {
+            var totalSets = 0
+            var completedSets = 0
+            for (session in recentSessions) {
+                for (ex in session.sessionExercises) {
+                    for (log in ex.setLogs) {
+                        totalSets++
+                        if (log.completedFlag) completedSets++
+                    }
+                }
+            }
+            if (totalSets > 0) {
+                val pct = (completedSets.toDouble() / totalSets * 100).toInt()
+                appendLine("Satz-Erfolgsquote (letzte Woche): $completedSets/$totalSets ($pct%)")
+            }
+        }
+    }
+
     private suspend fun callClaude(systemPrompt: String, userMessage: String): Result<String> =
         withContext(Dispatchers.IO) {
             try {
@@ -295,6 +427,68 @@ class ClaudeApiService(private val apiKey: String) {
                 val text = content.getJSONObject(0).getString("text")
 
                 Result.success(text)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    private suspend fun callClaudeWithThinking(systemPrompt: String, userMessage: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = URL("https://api.anthropic.com/v1/messages")
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("x-api-key", apiKey)
+                connection.setRequestProperty("anthropic-version", "2025-04-14")
+                connection.doOutput = true
+                connection.connectTimeout = 30_000
+                connection.readTimeout = 120_000
+
+                val body = JSONObject().apply {
+                    put("model", "claude-opus-4-6")
+                    put("max_tokens", 12000)
+                    put("thinking", JSONObject().apply {
+                        put("type", "enabled")
+                        put("budget_tokens", 8000)
+                    })
+                    put("system", systemPrompt)
+                    put("messages", JSONArray().put(
+                        JSONObject().apply {
+                            put("role", "user")
+                            put("content", userMessage)
+                        }
+                    ))
+                }
+
+                connection.outputStream.use { os ->
+                    os.write(body.toString().toByteArray(Charsets.UTF_8))
+                }
+
+                val responseCode = connection.responseCode
+                if (responseCode != 200) {
+                    val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "Unbekannter Fehler"
+                    return@withContext Result.failure(Exception("API-Fehler ($responseCode): $errorBody"))
+                }
+
+                val responseBody = connection.inputStream.bufferedReader().readText()
+                val json = JSONObject(responseBody)
+                val content = json.getJSONArray("content")
+
+                // Extended thinking returns multiple blocks: skip "thinking" blocks, find "text" block
+                var resultText = ""
+                for (i in 0 until content.length()) {
+                    val block = content.getJSONObject(i)
+                    if (block.getString("type") == "text") {
+                        resultText = block.getString("text")
+                        break
+                    }
+                }
+                if (resultText.isEmpty()) {
+                    return@withContext Result.failure(Exception("Keine Textantwort erhalten"))
+                }
+
+                Result.success(resultText)
             } catch (e: Exception) {
                 Result.failure(e)
             }
