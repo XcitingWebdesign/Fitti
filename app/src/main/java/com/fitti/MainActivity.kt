@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
         val workoutRepo = WorkoutSessionRepository(database.workoutSessionDao())
         val settingsRepo = SettingsRepository(applicationContext)
         val weightLogDao = database.weightLogDao()
+        val aiAnalysisDao = database.aiAnalysisDao()
 
         setContent {
             FittiTheme {
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
                             workoutRepo = workoutRepo,
                             settingsRepo = settingsRepo,
                             weightLogDao = weightLogDao,
+                            aiAnalysisDao = aiAnalysisDao,
                             onStartWorkout = { sessionId ->
                                 navController.navigate("workout/$sessionId") {
                                     launchSingleTop = true
