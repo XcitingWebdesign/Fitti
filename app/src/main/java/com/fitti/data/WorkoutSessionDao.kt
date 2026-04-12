@@ -82,6 +82,18 @@ interface WorkoutSessionDao {
     @Query("DELETE FROM workout_sessions WHERE id = :sessionId")
     suspend fun deleteSession(sessionId: Long)
 
+    @Query("UPDATE session_exercises SET exerciseStartedAt = :startedAt WHERE id = :id AND exerciseStartedAt IS NULL")
+    suspend fun setExerciseStartedAt(id: Long, startedAt: String)
+
+    @Query("UPDATE session_exercises SET exerciseCompletedAt = :completedAt WHERE id = :id")
+    suspend fun setExerciseCompletedAt(id: Long, completedAt: String)
+
+    @Query("UPDATE workout_sessions SET lastActivityAt = :lastActivityAt WHERE id = :sessionId")
+    suspend fun updateLastActivity(sessionId: Long, lastActivityAt: String)
+
+    @Query("SELECT sessionId FROM session_exercises WHERE id = :sessionExerciseId")
+    suspend fun getSessionIdForExercise(sessionExerciseId: Long): Long?
+
     @Transaction
     suspend fun startSession(
         startedAt: String,
@@ -93,7 +105,8 @@ interface WorkoutSessionDao {
         val sessionId = insertSession(
             WorkoutSessionEntity(
                 startedAt = startedAt,
-                status = WorkoutSessionEntity.STATUS_STARTED
+                status = WorkoutSessionEntity.STATUS_STARTED,
+                lastActivityAt = startedAt
             )
         )
 
@@ -129,14 +142,15 @@ interface WorkoutSessionDao {
         setNumber: Int,
         actualWeightKg: Double,
         actualReps: Int,
-        completedFlag: Boolean
+        completedFlag: Boolean,
+        now: String
     ): Long {
         val expectedNext = countSetLogsForSessionExercise(sessionExerciseId) + 1
         require(setNumber == expectedNext) {
             "setNumber must be sequential and start at 1. Expected: $expectedNext, but was: $setNumber"
         }
 
-        return insertSetLog(
+        val logId = insertSetLog(
             SetLogEntity(
                 sessionExerciseId = sessionExerciseId,
                 setNumber = setNumber,
@@ -145,6 +159,13 @@ interface WorkoutSessionDao {
                 completedFlag = completedFlag
             )
         )
+
+        val sessionId = getSessionIdForExercise(sessionExerciseId)
+        if (sessionId != null) {
+            updateLastActivity(sessionId, now)
+        }
+
+        return logId
     }
 
     @Transaction

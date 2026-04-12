@@ -1034,6 +1034,7 @@ private suspend fun exportFullBackup(
         obj.put("startedAt", s.startedAt)
         obj.put("completedAt", s.completedAt ?: JSONObject.NULL)
         obj.put("status", s.status)
+        obj.put("lastActivityAt", s.lastActivityAt)
         sessionsArr.put(obj)
     }
     root.put("workoutSessions", sessionsArr)
@@ -1058,6 +1059,8 @@ private suspend fun exportFullBackup(
         obj.put("plannedRestSeconds", se.plannedRestSeconds)
         obj.put("progressionStepKg", se.progressionStepKg)
         obj.put("weightSteps", se.weightSteps)
+        obj.put("exerciseStartedAt", se.exerciseStartedAt ?: JSONObject.NULL)
+        obj.put("exerciseCompletedAt", se.exerciseCompletedAt ?: JSONObject.NULL)
         seArr.put(obj)
     }
     root.put("sessionExercises", seArr)
@@ -1155,7 +1158,8 @@ private suspend fun importFullBackup(
                 id = obj.getLong("id"),
                 startedAt = obj.getString("startedAt"),
                 completedAt = if (obj.isNull("completedAt")) null else obj.getString("completedAt"),
-                status = obj.getString("status")
+                status = obj.getString("status"),
+                lastActivityAt = obj.optString("lastActivityAt", "")
             )
         )
     }
@@ -1182,7 +1186,9 @@ private suspend fun importFullBackup(
                 targetSets = obj.getInt("targetSets"),
                 plannedRestSeconds = obj.getInt("plannedRestSeconds"),
                 progressionStepKg = obj.getDouble("progressionStepKg"),
-                weightSteps = obj.optString("weightSteps", "")
+                weightSteps = obj.optString("weightSteps", ""),
+                exerciseStartedAt = if (obj.isNull("exerciseStartedAt")) null else obj.optString("exerciseStartedAt"),
+                exerciseCompletedAt = if (obj.isNull("exerciseCompletedAt")) null else obj.optString("exerciseCompletedAt")
             )
         )
     }

@@ -8,7 +8,8 @@ data class WorkoutSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val startedAt: String,
     val completedAt: String? = null,
-    val status: String
+    val status: String,
+    val lastActivityAt: String = ""
 ) {
     companion object {
         const val STATUS_STARTED = "STARTED"

@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SetLogEntity::class,
         WeightLogEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class FittiDatabase : RoomDatabase() {
@@ -142,9 +142,19 @@ abstract class FittiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Exercise timing (per-exercise duration tracking)
+                db.execSQL("ALTER TABLE session_exercises ADD COLUMN exerciseStartedAt TEXT")
+                db.execSQL("ALTER TABLE session_exercises ADD COLUMN exerciseCompletedAt TEXT")
+                // Last activity tracking (stale session detection)
+                db.execSQL("ALTER TABLE workout_sessions ADD COLUMN lastActivityAt TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun create(context: Context): FittiDatabase =
             Room.databaseBuilder(context, FittiDatabase::class.java, "fitti.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }

@@ -18,8 +18,9 @@ class WorkoutSessionRepository(
         setNumber: Int,
         actualWeightKg: Double,
         actualReps: Int,
-        completedFlag: Boolean
-    ): Long = dao.saveSet(sessionExerciseId, setNumber, actualWeightKg, actualReps, completedFlag)
+        completedFlag: Boolean,
+        now: String
+    ): Long = dao.saveSet(sessionExerciseId, setNumber, actualWeightKg, actualReps, completedFlag, now)
 
     suspend fun completeSession(sessionId: Long, completedAt: String): Boolean =
         dao.completeSession(sessionId, completedAt)
@@ -47,4 +48,10 @@ class WorkoutSessionRepository(
 
     suspend fun deleteSession(sessionId: Long) =
         dao.deleteSession(sessionId)
+
+    suspend fun setExerciseStartedAt(id: Long, startedAt: String) =
+        dao.setExerciseStartedAt(id, startedAt)
+
+    suspend fun setExerciseCompletedAt(id: Long, completedAt: String) =
+        dao.setExerciseCompletedAt(id, completedAt)
 }

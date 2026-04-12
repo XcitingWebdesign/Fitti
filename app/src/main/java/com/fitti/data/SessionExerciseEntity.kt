@@ -32,5 +32,7 @@ data class SessionExerciseEntity(
     val targetSets: Int,
     val plannedRestSeconds: Int,
     val progressionStepKg: Double,
-    val weightSteps: String = ""
+    val weightSteps: String = "",
+    val exerciseStartedAt: String? = null,
+    val exerciseCompletedAt: String? = null
 )

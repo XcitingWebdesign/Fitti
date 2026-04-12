@@ -45,7 +45,9 @@ import com.fitti.ui.HistoryDetailViewModelFactory
 import com.fitti.ui.common.AiFeedbackSection
 import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.cleanWeight
+import com.fitti.ui.common.formatDurationMinutes
 import com.fitti.ui.common.muscleGroupLabels
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun HistoryDetailScreen(
@@ -162,11 +164,16 @@ fun HistoryDetailScreen(
                     AiFeedbackSection(
                         onRequestFeedback = {
                             val weight = weightLogDao.getLatest()?.weightKg
+                            val allHistories = workoutRepo.observeSessionHistories().first()
+                            val allWeightLogs = weightLogDao.getAll()
                             val service = ClaudeApiService(settingsRepo.claudeApiKey)
                             service.getWorkoutFeedback(
                                 history = history,
                                 userGoal = settingsRepo.goal,
-                                latestWeightKg = weight
+                                latestWeightKg = weight,
+                                heightCm = settingsRepo.heightCm,
+                                allHistories = allHistories,
+                                weightLogs = allWeightLogs
                             )
                         }
                     )
@@ -228,11 +235,21 @@ private fun ExerciseHistoryCard(data: SessionExerciseWithSetLogs) {
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text(
-                        text = muscleGroupLabels[exercise.exerciseMuscleGroup] ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    val groupLabel = muscleGroupLabels[exercise.exerciseMuscleGroup] ?: ""
+                    val durationLabel = if (exercise.exerciseStartedAt != null && exercise.exerciseCompletedAt != null) {
+                        calculateDuration(exercise.exerciseStartedAt, exercise.exerciseCompletedAt)
+                    } else null
+                    val subtitle = listOfNotNull(
+                        groupLabel.ifEmpty { null },
+                        durationLabel
+                    ).joinToString(" \u2022 ")
+                    if (subtitle.isNotEmpty()) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 Text(
                     text = "Soll: ${exercise.targetWeight.cleanWeight()} x ${exercise.targetRepsMin}-${exercise.targetReps} x ${exercise.targetSets}",

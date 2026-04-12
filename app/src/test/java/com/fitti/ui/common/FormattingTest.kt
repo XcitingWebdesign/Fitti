@@ -72,7 +72,22 @@ class FormattingTest {
     @Test
     fun calculateDuration_validTimes() {
         val result = calculateDuration("15.03.2026 14:00", "15.03.2026 14:45")
-        assertEquals("45 min", result)
+        assertEquals("45 Min", result)
+    }
+
+    @Test
+    fun formatDurationMinutes_shortDuration() {
+        assertEquals("30 Min", formatDurationMinutes(30))
+    }
+
+    @Test
+    fun formatDurationMinutes_overOneHour() {
+        assertEquals("1 Std 25 Min", formatDurationMinutes(85))
+    }
+
+    @Test
+    fun formatDurationMinutes_exactHour() {
+        assertEquals("2 Std", formatDurationMinutes(120))
     }
 
     @Test

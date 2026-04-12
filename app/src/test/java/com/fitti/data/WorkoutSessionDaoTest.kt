@@ -76,7 +76,8 @@ class WorkoutSessionDaoTest {
             setNumber = 1,
             actualWeightKg = 40.0,
             actualReps = 10,
-            completedFlag = true
+            completedFlag = true,
+            now = "26.02.2026 11:01"
         )
 
         var invalidSetNumberFailed = false
@@ -86,7 +87,8 @@ class WorkoutSessionDaoTest {
                 setNumber = 1,
                 actualWeightKg = 40.0,
                 actualReps = 8,
-                completedFlag = true
+                completedFlag = true,
+                now = "26.02.2026 11:02"
             )
         } catch (_: IllegalArgumentException) {
             invalidSetNumberFailed = true
