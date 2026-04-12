@@ -77,8 +77,10 @@ import java.util.Date
 import com.fitti.ui.common.formatDateTime
 import com.fitti.ui.common.WeightChart
 import com.fitti.ui.common.calculateDuration
+import com.fitti.ui.common.MarkdownText
 import com.fitti.ui.common.muscleGroupLabels
 import com.fitti.ui.common.parseDateTime
+import com.fitti.ui.common.stripMarkdown
 
 @Composable
 fun HomeScreen(
@@ -375,7 +377,7 @@ private fun HomeScreenContent(
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    text = weeklyAnalysis!!,
+                                    text = stripMarkdown(weeklyAnalysis!!),
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 8,
                                     overflow = TextOverflow.Ellipsis
@@ -427,10 +429,7 @@ private fun HomeScreenContent(
             title = { Text("W\u00f6chentliches Coaching") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(
-                        text = weeklyAnalysis!!,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    MarkdownText(text = weeklyAnalysis!!)
                 }
             },
             confirmButton = {
