@@ -47,6 +47,7 @@ import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.formatDurationMinutes
 import com.fitti.ui.common.muscleGroupLabels
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun HistoryDetailScreen(
@@ -163,12 +164,16 @@ fun HistoryDetailScreen(
                     AiFeedbackSection(
                         onRequestFeedback = {
                             val weight = weightLogDao.getLatest()?.weightKg
+                            val allHistories = workoutRepo.observeSessionHistories().first()
+                            val allWeightLogs = weightLogDao.getAll()
                             val service = ClaudeApiService(settingsRepo.claudeApiKey)
                             service.getWorkoutFeedback(
                                 history = history,
                                 userGoal = settingsRepo.goal,
                                 latestWeightKg = weight,
-                                heightCm = settingsRepo.heightCm
+                                heightCm = settingsRepo.heightCm,
+                                allHistories = allHistories,
+                                weightLogs = allWeightLogs
                             )
                         }
                     )

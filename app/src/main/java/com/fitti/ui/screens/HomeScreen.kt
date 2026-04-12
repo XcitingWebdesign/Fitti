@@ -270,12 +270,15 @@ private fun HomeScreenContent(
                                     return@launch
                                 }
                                 val weight = weightLogDao.getLatest()?.weightKg
+                                val allWeightLogs = weightLogDao.getAll()
                                 val service = ClaudeApiService(settingsRepo.claudeApiKey)
                                 service.getWeeklyAnalysis(
                                     sessions = recentHistories,
                                     userGoal = settingsRepo.goal,
                                     latestWeightKg = weight,
-                                    heightCm = settingsRepo.heightCm
+                                    heightCm = settingsRepo.heightCm,
+                                    allHistories = allHistories,
+                                    weightLogs = allWeightLogs
                                 ).onSuccess { analysis ->
                                     weeklyAnalysis = analysis
                                     showAnalysisDialog = true
