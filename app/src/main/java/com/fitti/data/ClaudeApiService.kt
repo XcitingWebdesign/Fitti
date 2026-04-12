@@ -440,7 +440,7 @@ class ClaudeApiService(private val apiKey: String) {
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("x-api-key", apiKey)
-                connection.setRequestProperty("anthropic-version", "2025-04-14")
+                connection.setRequestProperty("anthropic-version", "2023-06-01")
                 connection.doOutput = true
                 connection.connectTimeout = 30_000
                 connection.readTimeout = 120_000
