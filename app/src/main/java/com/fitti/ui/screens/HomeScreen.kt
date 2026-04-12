@@ -266,7 +266,7 @@ private fun HomeScreenContent(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // Weekly AI Analysis
+            // Weekly AI Coaching
             if (hasApiKey && state.recentSessions.isNotEmpty()) {
                 item {
                     OutlinedButton(
@@ -274,6 +274,7 @@ private fun HomeScreenContent(
                             if (isLoadingAnalysis) return@OutlinedButton
                             isLoadingAnalysis = true
                             analysisError = null
+                            val previousCoaching = weeklyAnalysis
                             weeklyAnalysis = null
                             scope.launch {
                                 val allHistories = workoutRepo.observeSessionHistories().first()
@@ -292,13 +293,14 @@ private fun HomeScreenContent(
                                 val weight = weightLogDao.getLatest()?.weightKg
                                 val allWeightLogs = weightLogDao.getAll()
                                 val service = ClaudeApiService(settingsRepo.claudeApiKey)
-                                service.getWeeklyAnalysis(
+                                service.getWeeklyCoaching(
                                     sessions = recentHistories,
                                     userGoal = settingsRepo.goal,
                                     latestWeightKg = weight,
                                     heightCm = settingsRepo.heightCm,
                                     allHistories = allHistories,
-                                    weightLogs = allWeightLogs
+                                    weightLogs = allWeightLogs,
+                                    previousCoaching = previousCoaching
                                 ).onSuccess { analysis ->
                                     weeklyAnalysis = analysis
                                     showAnalysisDialog = true
@@ -319,10 +321,17 @@ private fun HomeScreenContent(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         if (isLoadingAnalysis) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "Coaching l\u00e4uft... (kann bis zu 2 Min dauern)",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         } else {
                             Text(
-                                "W\u00f6chentliche KI-Analyse",
+                                "W\u00f6chentliches Coaching",
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
@@ -352,7 +361,7 @@ private fun HomeScreenContent(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = "KI-Analyse",
+                                        text = "Coaching",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -368,7 +377,7 @@ private fun HomeScreenContent(
                                 Text(
                                     text = weeklyAnalysis!!,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 6,
+                                    maxLines = 8,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
@@ -411,11 +420,11 @@ private fun HomeScreenContent(
         )
     }
 
-    // Weekly Analysis Dialog
+    // Weekly Coaching Dialog
     if (showAnalysisDialog && weeklyAnalysis != null) {
         AlertDialog(
             onDismissRequest = { showAnalysisDialog = false },
-            title = { Text("W\u00f6chentliche KI-Analyse") },
+            title = { Text("W\u00f6chentliches Coaching") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
