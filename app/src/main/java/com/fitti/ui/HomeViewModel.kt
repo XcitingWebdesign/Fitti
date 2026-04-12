@@ -70,7 +70,12 @@ class HomeViewModel(
 
         viewModelScope.launch {
             val active = workoutRepo.getActiveSession()
-            _uiState.update { it.copy(activeSessionId = active?.id) }
+            if (active != null && isSessionStale(active)) {
+                workoutRepo.completeSession(active.id, formatDateTime(Date()))
+                _uiState.update { it.copy(activeSessionId = null) }
+            } else {
+                _uiState.update { it.copy(activeSessionId = active?.id) }
+            }
         }
 
         viewModelScope.launch {
@@ -120,12 +125,26 @@ class HomeViewModel(
     private suspend fun proceedToWorkout(onSessionReady: (Long) -> Unit) {
         val activeId = _uiState.value.activeSessionId
         if (activeId != null) {
-            onSessionReady(activeId)
-        } else {
-            val sessionId = startWorkoutSessionUseCase(formatDateTime(Date()))
-            _uiState.update { it.copy(activeSessionId = sessionId) }
-            onSessionReady(sessionId)
+            val session = workoutRepo.getSessionById(activeId)
+            if (session != null && isSessionStale(session)) {
+                // Auto-complete stale session and start fresh
+                workoutRepo.completeSession(activeId, formatDateTime(Date()))
+                _uiState.update { it.copy(activeSessionId = null) }
+            } else {
+                onSessionReady(activeId)
+                return
+            }
         }
+        val sessionId = startWorkoutSessionUseCase(formatDateTime(Date()))
+        _uiState.update { it.copy(activeSessionId = sessionId) }
+        onSessionReady(sessionId)
+    }
+
+    private fun isSessionStale(session: WorkoutSessionEntity): Boolean {
+        val lastActivity = session.lastActivityAt.ifEmpty { session.startedAt }
+        val date = parseDateTime(lastActivity) ?: return true
+        val minutesSince = (System.currentTimeMillis() - date.time) / 60000
+        return minutesSince > 30
     }
 
     private fun updateMuscleGroupFreshness(exercises: List<Exercise>) {

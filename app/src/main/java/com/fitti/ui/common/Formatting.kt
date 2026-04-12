@@ -52,8 +52,18 @@ fun calculateDuration(startedAt: String, completedAt: String?): String? {
         val start = parseDateTime(startedAt) ?: return null
         val end = parseDateTime(completedAt) ?: return null
         val diffMinutes = (end.time - start.time) / 60000
-        "$diffMinutes min"
+        formatDurationMinutes(diffMinutes)
     } catch (_: Exception) {
         null
+    }
+}
+
+fun formatDurationMinutes(minutes: Long): String {
+    return if (minutes >= 60) {
+        val hours = minutes / 60
+        val mins = minutes % 60
+        if (mins > 0) "$hours Std $mins Min" else "$hours Std"
+    } else {
+        "$minutes Min"
     }
 }

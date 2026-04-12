@@ -274,7 +274,8 @@ private fun HomeScreenContent(
                                 service.getWeeklyAnalysis(
                                     sessions = recentHistories,
                                     userGoal = settingsRepo.goal,
-                                    latestWeightKg = weight
+                                    latestWeightKg = weight,
+                                    heightCm = settingsRepo.heightCm
                                 ).onSuccess { analysis ->
                                     weeklyAnalysis = analysis
                                     showAnalysisDialog = true

@@ -36,6 +36,7 @@ data class ActiveWorkoutUiState(
     val completedExerciseCount: Int = 0,
     val skippedCount: Int = 0,
     val timerState: TimerState = TimerState.Idle,
+    val isExerciseTransition: Boolean = false,
     val showProgressionDialog: Boolean = false,
     val nextWeight: Double = 0.0,
     val isWorkoutComplete: Boolean = false,
@@ -80,6 +81,7 @@ class ActiveWorkoutViewModel(
     private val weightChanges = mutableListOf<WeightChange>()
     private var countDownTimer: CountDownTimer? = null
     private var sessionStartTime: Date? = null
+    private var advanceToNextExerciseAfterTimer = false
 
     init {
         loadSession()
@@ -123,6 +125,8 @@ class ActiveWorkoutViewModel(
             return
         }
 
+        workoutRepo.setExerciseStartedAt(current.id, formatDateTime(Date()))
+
         val logs = workoutRepo.getSetLogs(current.id)
         _uiState.update {
             it.copy(
@@ -150,7 +154,8 @@ class ActiveWorkoutViewModel(
                 setNumber = setNumber,
                 actualWeightKg = exercise.targetWeight,
                 actualReps = reps,
-                completedFlag = completed
+                completedFlag = completed,
+                now = formatDateTime(Date())
             )
 
             val logs = workoutRepo.getSetLogs(exercise.id)
@@ -162,6 +167,8 @@ class ActiveWorkoutViewModel(
             }
 
             if (logs.size >= exercise.targetSets) {
+                workoutRepo.setExerciseCompletedAt(exercise.id, formatDateTime(Date()))
+
                 if (ProgressionService.isEligibleForProgression(logs, exercise.targetSets, exercise.targetReps)) {
                     val nextWeight = ProgressionService.calculateNextWeight(
                         exercise.targetWeight,
@@ -182,10 +189,16 @@ class ActiveWorkoutViewModel(
                     _uiState.update {
                         it.copy(
                             completedExerciseCount = it.completedExerciseCount + 1,
-                            isProcessing = false
+                            isProcessing = false,
+                            isExerciseTransition = true
                         )
                     }
-                    showCurrentExercise()
+                    if (exerciseQueue.isEmpty()) {
+                        showCurrentExercise() // will call finishWorkout()
+                    } else {
+                        advanceToNextExerciseAfterTimer = true
+                        startRestTimer(exercise.plannedRestSeconds)
+                    }
                 }
             } else {
                 _uiState.update { it.copy(isProcessing = false) }
@@ -218,11 +231,17 @@ class ActiveWorkoutViewModel(
             _uiState.update {
                 it.copy(
                     completedExerciseCount = it.completedExerciseCount + 1,
-                    showProgressionDialog = false
+                    showProgressionDialog = false,
+                    isExerciseTransition = true
                 )
             }
 
-            showCurrentExercise()
+            if (exerciseQueue.isEmpty()) {
+                showCurrentExercise() // will call finishWorkout()
+            } else {
+                advanceToNextExerciseAfterTimer = true
+                startRestTimer(exercise.plannedRestSeconds)
+            }
         }
     }
 
@@ -237,7 +256,13 @@ class ActiveWorkoutViewModel(
 
     fun onTimerSkipped() {
         countDownTimer?.cancel()
-        _uiState.update { it.copy(timerState = TimerState.Idle) }
+        if (advanceToNextExerciseAfterTimer) {
+            advanceToNextExerciseAfterTimer = false
+            _uiState.update { it.copy(timerState = TimerState.Idle, isExerciseTransition = false) }
+            viewModelScope.launch { showCurrentExercise() }
+        } else {
+            _uiState.update { it.copy(timerState = TimerState.Idle) }
+        }
     }
 
     fun onEndWorkoutEarly() {
@@ -302,7 +327,7 @@ class ActiveWorkoutViewModel(
 
     private fun playNotificationSound() {
         try {
-            val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+            val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
             val handler = Handler(Looper.getMainLooper())
             // Pleasant ascending three-tone chime
             toneGen.startTone(ToneGenerator.TONE_DTMF_A, 150)

@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,6 +55,7 @@ import com.fitti.ui.TimerState
 
 import com.fitti.ui.common.AiFeedbackSection
 import com.fitti.ui.common.cleanWeight
+import com.fitti.ui.common.formatDurationMinutes
 import com.fitti.ui.common.muscleGroupLabels
 
 @Composable
@@ -104,6 +106,7 @@ fun ActiveWorkoutScreen(
                 timerState = state.timerState,
                 completedSetNumber = state.currentSetNumber - 1,
                 totalSets = state.currentExercise!!.targetSets,
+                isExerciseTransition = state.isExerciseTransition,
                 onSkipTimer = { vm.onTimerSkipped() }
             )
         }
@@ -324,6 +327,7 @@ private fun TimerContent(
     timerState: TimerState,
     completedSetNumber: Int,
     totalSets: Int,
+    isExerciseTransition: Boolean = false,
     onSkipTimer: () -> Unit
 ) {
     val (remaining, total) = when (timerState) {
@@ -357,7 +361,8 @@ private fun TimerContent(
             Spacer(Modifier.height(8.dp))
 
             Text(
-                text = "Satz $completedSetNumber von $totalSets geschafft",
+                text = if (isExerciseTransition) "\u00dcbung abgeschlossen"
+                       else "Satz $completedSetNumber von $totalSets geschafft",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -396,7 +401,10 @@ private fun TimerContent(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    if (isFinished) "Weiter zum n\u00e4chsten Satz" else "Timer \u00fcberspringen",
+                    if (isFinished) {
+                        if (isExerciseTransition) "Weiter zur n\u00e4chsten \u00dcbung"
+                        else "Weiter zum n\u00e4chsten Satz"
+                    } else "Timer \u00fcberspringen",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -521,7 +529,7 @@ private fun WorkoutSummaryContent(
                     Spacer(Modifier.height(24.dp))
 
                     Text(
-                        text = "Dauer: ${summary.durationMinutes} Minuten",
+                        text = "Dauer: ${formatDurationMinutes(summary.durationMinutes)}",
                         style = MaterialTheme.typography.titleLarge
                     )
 
@@ -594,7 +602,8 @@ private fun WorkoutSummaryContent(
                             service.getWorkoutFeedback(
                                 history = history,
                                 userGoal = settingsRepo.goal,
-                                latestWeightKg = weight
+                                latestWeightKg = weight,
+                                heightCm = settingsRepo.heightCm
                             )
                         }
                     )
