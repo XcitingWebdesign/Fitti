@@ -289,7 +289,8 @@ class ClaudeApiService(private val apiKey: String) {
                 "- Nenne \u00dcbungen immer beim Namen\n" +
                 "- Verwende die tats\u00e4chlichen Zahlen aus den Trainingsdaten\n" +
                 "- Wenn kein Ziel gesetzt ist, empfiehl dem Klienten, eines zu setzen, und arbeite trotzdem mit den verf\u00fcgbaren Daten\n" +
-                "- Wenn kein vorheriges Coaching vorhanden ist, \u00fcberspringe den Abschnitt \"Fortschritt seit letztem Coaching\""
+                "- Wenn kein vorheriges Coaching vorhanden ist, \u00fcberspringe den Abschnitt \"Fortschritt seit letztem Coaching\"\n" +
+                "- Verwende KEINE Markdown-Tabellen. Nutze stattdessen Aufz\u00e4hlungen (Spiegelstriche) f\u00fcr \u00dcbungsvergleiche und Gewichtsdaten."
 
         val userMessage = buildString {
             appendLine("=== Trainings der letzten Woche (${sessions.size} Einheiten) ===")

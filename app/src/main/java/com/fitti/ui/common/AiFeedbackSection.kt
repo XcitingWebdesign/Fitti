@@ -101,10 +101,7 @@ fun AiFeedbackSection(
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = feedback!!,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    MarkdownText(text = feedback!!)
                 }
             }
         }
