@@ -13,15 +13,17 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSessionEntity::class,
         SessionExerciseEntity::class,
         SetLogEntity::class,
-        WeightLogEntity::class
+        WeightLogEntity::class,
+        AiAnalysisEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class FittiDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun weightLogDao(): WeightLogDao
+    abstract fun aiAnalysisDao(): AiAnalysisDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -152,9 +154,23 @@ abstract class FittiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `ai_analyses` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `analysisText` TEXT NOT NULL,
+                        `createdAt` TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun create(context: Context): FittiDatabase =
             Room.databaseBuilder(context, FittiDatabase::class.java, "fitti.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
     }
 }

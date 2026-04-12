@@ -2,6 +2,8 @@ package com.fitti.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,11 +51,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fitti.data.AiAnalysisDao
+import com.fitti.data.AiAnalysisEntity
 import com.fitti.data.ClaudeApiService
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.SettingsRepository
@@ -66,7 +72,9 @@ import com.fitti.ui.MuscleGroupStatus
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.Date
 
+import com.fitti.ui.common.formatDateTime
 import com.fitti.ui.common.WeightChart
 import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.muscleGroupLabels
@@ -78,6 +86,7 @@ fun HomeScreen(
     workoutRepo: WorkoutSessionRepository,
     settingsRepo: SettingsRepository,
     weightLogDao: WeightLogDao,
+    aiAnalysisDao: AiAnalysisDao,
     onStartWorkout: (Long) -> Unit,
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit
@@ -92,6 +101,7 @@ fun HomeScreen(
         settingsRepo = settingsRepo,
         workoutRepo = workoutRepo,
         weightLogDao = weightLogDao,
+        aiAnalysisDao = aiAnalysisDao,
         onStartTraining = { vm.startOrContinueWorkout(onStartWorkout) },
         onOpenHistory = onOpenHistory,
         onOpenSettings = onOpenSettings,
@@ -107,6 +117,7 @@ private fun HomeScreenContent(
     settingsRepo: SettingsRepository,
     workoutRepo: WorkoutSessionRepository,
     weightLogDao: WeightLogDao,
+    aiAnalysisDao: AiAnalysisDao,
     onStartTraining: () -> Unit,
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit,
@@ -115,10 +126,19 @@ private fun HomeScreenContent(
 ) {
     val scope = rememberCoroutineScope()
     var weeklyAnalysis by remember { mutableStateOf<String?>(null) }
+    var weeklyAnalysisTimestamp by remember { mutableStateOf<String?>(null) }
     var isLoadingAnalysis by remember { mutableStateOf(false) }
     var analysisError by remember { mutableStateOf<String?>(null) }
     var showAnalysisDialog by remember { mutableStateOf(false) }
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
+
+    LaunchedEffect(Unit) {
+        val latest = aiAnalysisDao.getLatest()
+        if (latest != null) {
+            weeklyAnalysis = latest.analysisText
+            weeklyAnalysisTimestamp = latest.createdAt
+        }
+    }
     Scaffold(
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
@@ -282,6 +302,11 @@ private fun HomeScreenContent(
                                 ).onSuccess { analysis ->
                                     weeklyAnalysis = analysis
                                     showAnalysisDialog = true
+                                    val ts = formatDateTime(Date())
+                                    weeklyAnalysisTimestamp = ts
+                                    aiAnalysisDao.insert(
+                                        AiAnalysisEntity(analysisText = analysis, createdAt = ts)
+                                    )
                                 }.onFailure { e ->
                                     analysisError = "Fehler: ${e.message}"
                                 }
@@ -309,6 +334,45 @@ private fun HomeScreenContent(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
+                    }
+                    if (weeklyAnalysis != null && !isLoadingAnalysis) {
+                        Spacer(Modifier.height(8.dp))
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showAnalysisDialog = true },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "KI-Analyse",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    if (weeklyAnalysisTimestamp != null) {
+                                        Text(
+                                            text = weeklyAnalysisTimestamp!!,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = weeklyAnalysis!!,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 6,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                     Spacer(Modifier.height(8.dp))
                 }
@@ -353,10 +417,12 @@ private fun HomeScreenContent(
             onDismissRequest = { showAnalysisDialog = false },
             title = { Text("W\u00f6chentliche KI-Analyse") },
             text = {
-                Text(
-                    text = weeklyAnalysis!!,
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = weeklyAnalysis!!,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = { showAnalysisDialog = false }) {
