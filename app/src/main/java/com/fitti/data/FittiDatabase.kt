@@ -171,9 +171,7 @@ abstract class FittiDatabase : RoomDatabase() {
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 val kgStack = ExerciseEntity.NAUTILUS_WEIGHT_STACK_KG
-                db.execSQL("UPDATE exercises SET weightSteps = '$kgStack' WHERE brand = 'Nautilus' AND weightUnit = 'kg' AND code != 'F6'")
-                val kgShort = ExerciseEntity.NAUTILUS_WEIGHT_STACK_KG_SHORT
-                db.execSQL("UPDATE exercises SET weightSteps = '$kgShort' WHERE brand = 'Nautilus' AND code = 'F6'")
+                db.execSQL("UPDATE exercises SET weightSteps = '$kgStack' WHERE brand = 'Nautilus' AND weightUnit = 'kg'")
                 val lbStack = ExerciseEntity.NAUTILUS_WEIGHT_STACK_LB
                 db.execSQL("UPDATE exercises SET weightSteps = '$lbStack' WHERE brand = 'Nautilus' AND weightUnit = 'lb'")
             }
