@@ -392,42 +392,46 @@ class ClaudeApiService(private val apiKey: String) {
             try {
                 val url = URL("https://api.anthropic.com/v1/messages")
                 val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "POST"
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.setRequestProperty("x-api-key", apiKey)
-                connection.setRequestProperty("anthropic-version", "2023-06-01")
-                connection.doOutput = true
-                connection.connectTimeout = 30_000
-                connection.readTimeout = 60_000
+                try {
+                    connection.requestMethod = "POST"
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.setRequestProperty("x-api-key", apiKey)
+                    connection.setRequestProperty("anthropic-version", "2023-06-01")
+                    connection.doOutput = true
+                    connection.connectTimeout = 30_000
+                    connection.readTimeout = 60_000
 
-                val body = JSONObject().apply {
-                    put("model", "claude-sonnet-4-6")
-                    put("max_tokens", 1024)
-                    put("system", systemPrompt)
-                    put("messages", JSONArray().put(
-                        JSONObject().apply {
-                            put("role", "user")
-                            put("content", userMessage)
-                        }
-                    ))
+                    val body = JSONObject().apply {
+                        put("model", "claude-sonnet-4-6")
+                        put("max_tokens", 1024)
+                        put("system", systemPrompt)
+                        put("messages", JSONArray().put(
+                            JSONObject().apply {
+                                put("role", "user")
+                                put("content", userMessage)
+                            }
+                        ))
+                    }
+
+                    connection.outputStream.use { os ->
+                        os.write(body.toString().toByteArray(Charsets.UTF_8))
+                    }
+
+                    val responseCode = connection.responseCode
+                    if (responseCode != 200) {
+                        val errorBody = connection.errorStream?.use { it.bufferedReader().readText() } ?: "Unbekannter Fehler"
+                        return@withContext Result.failure(Exception("API-Fehler ($responseCode): $errorBody"))
+                    }
+
+                    val responseBody = connection.inputStream.use { it.bufferedReader().readText() }
+                    val json = JSONObject(responseBody)
+                    val content = json.getJSONArray("content")
+                    val text = content.getJSONObject(0).getString("text")
+
+                    Result.success(text)
+                } finally {
+                    connection.disconnect()
                 }
-
-                connection.outputStream.use { os ->
-                    os.write(body.toString().toByteArray(Charsets.UTF_8))
-                }
-
-                val responseCode = connection.responseCode
-                if (responseCode != 200) {
-                    val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "Unbekannter Fehler"
-                    return@withContext Result.failure(Exception("API-Fehler ($responseCode): $errorBody"))
-                }
-
-                val responseBody = connection.inputStream.bufferedReader().readText()
-                val json = JSONObject(responseBody)
-                val content = json.getJSONArray("content")
-                val text = content.getJSONObject(0).getString("text")
-
-                Result.success(text)
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -438,58 +442,62 @@ class ClaudeApiService(private val apiKey: String) {
             try {
                 val url = URL("https://api.anthropic.com/v1/messages")
                 val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "POST"
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.setRequestProperty("x-api-key", apiKey)
-                connection.setRequestProperty("anthropic-version", "2023-06-01")
-                connection.doOutput = true
-                connection.connectTimeout = 30_000
-                connection.readTimeout = 120_000
+                try {
+                    connection.requestMethod = "POST"
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.setRequestProperty("x-api-key", apiKey)
+                    connection.setRequestProperty("anthropic-version", "2023-06-01")
+                    connection.doOutput = true
+                    connection.connectTimeout = 30_000
+                    connection.readTimeout = 120_000
 
-                val body = JSONObject().apply {
-                    put("model", "claude-opus-4-6")
-                    put("max_tokens", 12000)
-                    put("thinking", JSONObject().apply {
-                        put("type", "enabled")
-                        put("budget_tokens", 8000)
-                    })
-                    put("system", systemPrompt)
-                    put("messages", JSONArray().put(
-                        JSONObject().apply {
-                            put("role", "user")
-                            put("content", userMessage)
-                        }
-                    ))
-                }
-
-                connection.outputStream.use { os ->
-                    os.write(body.toString().toByteArray(Charsets.UTF_8))
-                }
-
-                val responseCode = connection.responseCode
-                if (responseCode != 200) {
-                    val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "Unbekannter Fehler"
-                    return@withContext Result.failure(Exception("API-Fehler ($responseCode): $errorBody"))
-                }
-
-                val responseBody = connection.inputStream.bufferedReader().readText()
-                val json = JSONObject(responseBody)
-                val content = json.getJSONArray("content")
-
-                // Extended thinking returns multiple blocks: skip "thinking" blocks, find "text" block
-                var resultText = ""
-                for (i in 0 until content.length()) {
-                    val block = content.getJSONObject(i)
-                    if (block.getString("type") == "text") {
-                        resultText = block.getString("text")
-                        break
+                    val body = JSONObject().apply {
+                        put("model", "claude-opus-4-6")
+                        put("max_tokens", 12000)
+                        put("thinking", JSONObject().apply {
+                            put("type", "enabled")
+                            put("budget_tokens", 8000)
+                        })
+                        put("system", systemPrompt)
+                        put("messages", JSONArray().put(
+                            JSONObject().apply {
+                                put("role", "user")
+                                put("content", userMessage)
+                            }
+                        ))
                     }
-                }
-                if (resultText.isEmpty()) {
-                    return@withContext Result.failure(Exception("Keine Textantwort erhalten"))
-                }
 
-                Result.success(resultText)
+                    connection.outputStream.use { os ->
+                        os.write(body.toString().toByteArray(Charsets.UTF_8))
+                    }
+
+                    val responseCode = connection.responseCode
+                    if (responseCode != 200) {
+                        val errorBody = connection.errorStream?.use { it.bufferedReader().readText() } ?: "Unbekannter Fehler"
+                        return@withContext Result.failure(Exception("API-Fehler ($responseCode): $errorBody"))
+                    }
+
+                    val responseBody = connection.inputStream.use { it.bufferedReader().readText() }
+                    val json = JSONObject(responseBody)
+                    val content = json.getJSONArray("content")
+
+                    // Extended thinking returns multiple blocks: skip "thinking" blocks, find "text" block
+                    var resultText = ""
+                    for (i in 0 until content.length()) {
+                        val block = content.getJSONObject(i)
+                        if (block.getString("type") == "text") {
+                            resultText = block.getString("text")
+                            break
+                        }
+                    }
+                    if (resultText.isEmpty()) {
+                        return@withContext Result.failure(Exception("Keine Textantwort erhalten"))
+                    }
+
+                    Result.success(resultText)
+                } finally {
+                    connection.disconnect()
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }

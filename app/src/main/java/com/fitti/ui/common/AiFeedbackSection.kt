@@ -47,10 +47,15 @@ fun AiFeedbackSection(
                     isLoading = true
                     error = null
                     scope.launch {
-                        onRequestFeedback()
-                            .onSuccess { feedback = it }
-                            .onFailure { e -> error = "Fehler: ${e.message}" }
-                        isLoading = false
+                        try {
+                            onRequestFeedback()
+                                .onSuccess { feedback = it }
+                                .onFailure { e -> error = "Fehler: ${e.message}" }
+                        } catch (e: Exception) {
+                            error = "Fehler: ${e.message}"
+                        } finally {
+                            isLoading = false
+                        }
                     }
                 },
                 modifier = Modifier
