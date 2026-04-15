@@ -42,7 +42,8 @@ data class ActiveWorkoutUiState(
     val isWorkoutComplete: Boolean = false,
     val isProcessing: Boolean = false,
     val sessionSummary: SessionSummary? = null,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val nextExerciseName: String = ""
 )
 
 sealed class TimerState {
@@ -82,6 +83,11 @@ class ActiveWorkoutViewModel(
     private var countDownTimer: CountDownTimer? = null
     private var sessionStartTime: Date? = null
     private var advanceToNextExerciseAfterTimer = false
+
+    private fun peekNextExerciseName(): String {
+        val next = exerciseQueue.peek() ?: return ""
+        return next.exerciseDisplayName.ifEmpty { next.exerciseCode }
+    }
 
     init {
         loadSession()
@@ -190,7 +196,8 @@ class ActiveWorkoutViewModel(
                         it.copy(
                             completedExerciseCount = it.completedExerciseCount + 1,
                             isProcessing = false,
-                            isExerciseTransition = true
+                            isExerciseTransition = true,
+                            nextExerciseName = peekNextExerciseName()
                         )
                     }
                     if (exerciseQueue.isEmpty()) {
@@ -232,7 +239,8 @@ class ActiveWorkoutViewModel(
                 it.copy(
                     completedExerciseCount = it.completedExerciseCount + 1,
                     showProgressionDialog = false,
-                    isExerciseTransition = true
+                    isExerciseTransition = true,
+                    nextExerciseName = peekNextExerciseName()
                 )
             }
 
@@ -242,6 +250,17 @@ class ActiveWorkoutViewModel(
                 advanceToNextExerciseAfterTimer = true
                 startRestTimer(exercise.plannedRestSeconds)
             }
+        }
+    }
+
+    fun onSkipNextExerciseDuringTimer() {
+        val skipped = exerciseQueue.poll() ?: return
+        exerciseQueue.add(skipped)
+        _uiState.update {
+            it.copy(
+                nextExerciseName = peekNextExerciseName(),
+                skippedCount = it.skippedCount + 1
+            )
         }
     }
 
