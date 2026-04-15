@@ -279,42 +279,46 @@ private fun HomeScreenContent(
                             val previousCoaching = weeklyAnalysis
                             weeklyAnalysis = null
                             scope.launch {
-                                val allHistories = workoutRepo.observeSessionHistories().first()
-                                val sevenDaysAgo = Calendar.getInstance().apply {
-                                    add(Calendar.DAY_OF_YEAR, -7)
-                                }.time
-                                val recentHistories = allHistories.filter { history ->
-                                    val date = parseDateTime(history.session.completedAt ?: history.session.startedAt)
-                                    date != null && date.after(sevenDaysAgo)
-                                }
-                                if (recentHistories.isEmpty()) {
-                                    analysisError = "Keine Trainings in den letzten 7 Tagen."
-                                    isLoadingAnalysis = false
-                                    return@launch
-                                }
-                                val weight = weightLogDao.getLatest()?.weightKg
-                                val allWeightLogs = weightLogDao.getAll()
-                                val service = ClaudeApiService(settingsRepo.claudeApiKey)
-                                service.getWeeklyCoaching(
-                                    sessions = recentHistories,
-                                    userGoal = settingsRepo.goal,
-                                    latestWeightKg = weight,
-                                    heightCm = settingsRepo.heightCm,
-                                    allHistories = allHistories,
-                                    weightLogs = allWeightLogs,
-                                    previousCoaching = previousCoaching
-                                ).onSuccess { analysis ->
-                                    weeklyAnalysis = analysis
-                                    showAnalysisDialog = true
-                                    val ts = formatDateTime(Date())
-                                    weeklyAnalysisTimestamp = ts
-                                    aiAnalysisDao.insert(
-                                        AiAnalysisEntity(analysisText = analysis, createdAt = ts)
-                                    )
-                                }.onFailure { e ->
+                                try {
+                                    val allHistories = workoutRepo.observeSessionHistories().first()
+                                    val sevenDaysAgo = Calendar.getInstance().apply {
+                                        add(Calendar.DAY_OF_YEAR, -7)
+                                    }.time
+                                    val recentHistories = allHistories.filter { history ->
+                                        val date = parseDateTime(history.session.completedAt ?: history.session.startedAt)
+                                        date != null && date.after(sevenDaysAgo)
+                                    }
+                                    if (recentHistories.isEmpty()) {
+                                        analysisError = "Keine Trainings in den letzten 7 Tagen."
+                                        return@launch
+                                    }
+                                    val weight = weightLogDao.getLatest()?.weightKg
+                                    val allWeightLogs = weightLogDao.getAll()
+                                    val service = ClaudeApiService(settingsRepo.claudeApiKey)
+                                    service.getWeeklyCoaching(
+                                        sessions = recentHistories,
+                                        userGoal = settingsRepo.goal,
+                                        latestWeightKg = weight,
+                                        heightCm = settingsRepo.heightCm,
+                                        allHistories = allHistories,
+                                        weightLogs = allWeightLogs,
+                                        previousCoaching = previousCoaching
+                                    ).onSuccess { analysis ->
+                                        weeklyAnalysis = analysis
+                                        showAnalysisDialog = true
+                                        val ts = formatDateTime(Date())
+                                        weeklyAnalysisTimestamp = ts
+                                        aiAnalysisDao.insert(
+                                            AiAnalysisEntity(analysisText = analysis, createdAt = ts)
+                                        )
+                                    }.onFailure { e ->
+                                        analysisError = "Fehler: ${e.message}"
+                                    }
+                                } catch (e: Exception) {
                                     analysisError = "Fehler: ${e.message}"
+                                } finally {
+                                    isLoadingAnalysis = false
                                 }
-                                isLoadingAnalysis = false
                             }
                         },
                         modifier = Modifier
