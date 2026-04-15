@@ -108,7 +108,9 @@ fun ActiveWorkoutScreen(
                 completedSetNumber = state.currentSetNumber - 1,
                 totalSets = state.currentExercise!!.targetSets,
                 isExerciseTransition = state.isExerciseTransition,
-                onSkipTimer = { vm.onTimerSkipped() }
+                nextExerciseName = state.nextExerciseName,
+                onSkipTimer = { vm.onTimerSkipped() },
+                onSkipNextExercise = { vm.onSkipNextExerciseDuringTimer() }
             )
         }
         state.currentExercise != null -> {
@@ -329,7 +331,9 @@ private fun TimerContent(
     completedSetNumber: Int,
     totalSets: Int,
     isExerciseTransition: Boolean = false,
-    onSkipTimer: () -> Unit
+    nextExerciseName: String = "",
+    onSkipTimer: () -> Unit,
+    onSkipNextExercise: () -> Unit = {}
 ) {
     val (remaining, total) = when (timerState) {
         is TimerState.Running -> timerState.secondsRemaining to timerState.totalSeconds
@@ -392,7 +396,31 @@ private fun TimerContent(
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
 
-            Spacer(Modifier.height(48.dp))
+            Spacer(Modifier.height(32.dp))
+
+            if (isExerciseTransition && nextExerciseName.isNotEmpty()) {
+                Text(
+                    text = "N\u00e4chstes Ger\u00e4t",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = nextExerciseName,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onSkipNextExercise) {
+                    Text(
+                        "\u00dcberspringen",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
 
             OutlinedButton(
                 onClick = onSkipTimer,
