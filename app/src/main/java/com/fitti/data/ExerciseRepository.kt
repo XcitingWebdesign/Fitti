@@ -57,7 +57,7 @@ class ExerciseRepository(
                 ExerciseEntity(code = "D3", brand = "Nautilus", displayName = "Shoulder Press", muscleGroup = "SHOULDERS", currentWeight = 36.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 4, weightSteps = nautilusStack),
                 ExerciseEntity(code = "D4", brand = "Nautilus", displayName = "Leg Extension", muscleGroup = "LEGS", currentWeight = 60.0, weightUnit = "lb", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 5, weightSteps = ExerciseEntity.NAUTILUS_WEIGHT_STACK_LB),
                 ExerciseEntity(code = "F3", brand = "Nautilus", displayName = "Lat Pulldown", muscleGroup = "BACK", currentWeight = 32.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 6, weightSteps = nautilusStack),
-                ExerciseEntity(code = "F6", brand = "Nautilus", displayName = "Ab Crunch", muscleGroup = "ABS", currentWeight = 35.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 7, weightSteps = nautilusStack)
+                ExerciseEntity(code = "F6", brand = "Nautilus", displayName = "Ab Crunch", muscleGroup = "ABS", currentWeight = 35.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 7, weightSteps = ExerciseEntity.NAUTILUS_WEIGHT_STACK_KG_SHORT)
             )
         )
     }
