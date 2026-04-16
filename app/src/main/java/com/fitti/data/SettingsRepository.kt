@@ -40,6 +40,15 @@ class SettingsRepository(context: Context) {
         get() = prefs.getString(KEY_CLAUDE_API_KEY, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CLAUDE_API_KEY, value).apply()
 
+    fun getSeenAchievements(): Set<String> =
+        prefs.getStringSet(KEY_SEEN_ACHIEVEMENTS, emptySet())?.toSet() ?: emptySet()
+
+    fun markAchievementSeen(code: String) {
+        val current = getSeenAchievements().toMutableSet()
+        current += code
+        prefs.edit().putStringSet(KEY_SEEN_ACHIEVEMENTS, current).apply()
+    }
+
     companion object {
         private const val KEY_REPS_MIN = "reps_min"
         private const val KEY_REPS_MAX = "reps_max"
@@ -49,5 +58,6 @@ class SettingsRepository(context: Context) {
         private const val KEY_HEIGHT_CM = "height_cm"
         private const val KEY_GOAL = "goal"
         private const val KEY_CLAUDE_API_KEY = "claude_api_key"
+        private const val KEY_SEEN_ACHIEVEMENTS = "seen_achievements"
     }
 }

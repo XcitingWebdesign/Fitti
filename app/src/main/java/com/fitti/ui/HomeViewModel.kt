@@ -9,8 +9,11 @@ import com.fitti.data.WeightLogDao
 import com.fitti.data.WeightLogEntity
 import com.fitti.data.WorkoutSessionEntity
 import com.fitti.data.WorkoutSessionRepository
+import com.fitti.domain.Achievement
+import com.fitti.domain.AchievementService
 import com.fitti.domain.Exercise
 import com.fitti.domain.StartWorkoutSessionUseCase
+import com.fitti.domain.StrengthEstimator
 import com.fitti.ui.common.FRESHNESS_FRESH_DAYS
 import com.fitti.ui.common.FRESHNESS_STALE_DAYS
 import com.fitti.ui.common.WEIGHT_LOG_INTERVAL_DAYS
@@ -20,6 +23,7 @@ import com.fitti.ui.common.parseDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Date
@@ -33,6 +37,9 @@ data class HomeUiState(
     val lastWeightKg: Double? = null,
     val goal: String = "",
     val weightLogs: List<WeightLogEntity> = emptyList(),
+    val balanceByGroup: Map<String, Float> = emptyMap(),
+    val streakWeeks: Int = 0,
+    val newAchievements: List<Achievement> = emptyList(),
     val isLoading: Boolean = true
 )
 
@@ -65,6 +72,7 @@ class HomeViewModel(
             workoutRepo.observeCompletedSessions().collect { sessions ->
                 _uiState.update { it.copy(recentSessions = sessions, isLoading = false) }
                 updateMuscleGroupFreshness(_uiState.value.exercises)
+                refreshStatsAndAchievements(sessions)
             }
         }
 
@@ -122,6 +130,13 @@ class HomeViewModel(
         viewModelScope.launch { proceedToWorkout(onSessionReady) }
     }
 
+    fun markAchievementSeen(code: String) {
+        settingsRepo.markAchievementSeen(code)
+        _uiState.update { state ->
+            state.copy(newAchievements = state.newAchievements.filterNot { it.code == code })
+        }
+    }
+
     private suspend fun proceedToWorkout(onSessionReady: (Long) -> Unit) {
         val activeId = _uiState.value.activeSessionId
         if (activeId != null) {
@@ -176,6 +191,33 @@ class HomeViewModel(
             }
 
             _uiState.update { it.copy(muscleGroupFreshness = freshness) }
+        }
+    }
+
+    private fun refreshStatsAndAchievements(sessions: List<WorkoutSessionEntity>) {
+        viewModelScope.launch {
+            val histories = workoutRepo.observeSessionHistories().first()
+
+            val raw = StrengthEstimator.groupMax(histories)
+            val normalized = StrengthEstimator.normalize(raw)
+
+            val streak = AchievementService.computeStreak(sessions)
+
+            val earned = AchievementService.computeAchievements(
+                sessions = sessions,
+                histories = histories,
+                startingWeightByExerciseId = emptyMap()
+            )
+            val seen = settingsRepo.getSeenAchievements()
+            val newOnes = earned.filter { it.code !in seen }
+
+            _uiState.update {
+                it.copy(
+                    balanceByGroup = normalized,
+                    streakWeeks = streak,
+                    newAchievements = newOnes
+                )
+            }
         }
     }
 
