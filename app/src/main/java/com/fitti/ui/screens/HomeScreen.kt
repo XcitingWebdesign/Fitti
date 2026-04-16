@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +73,8 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
 
+import com.fitti.domain.Achievement
+import com.fitti.ui.common.BalanceRadar
 import com.fitti.ui.common.formatDateTime
 import com.fitti.ui.common.WeightChart
 import com.fitti.ui.common.calculateDuration
@@ -108,7 +109,8 @@ fun HomeScreen(
         onOpenHistory = onOpenHistory,
         onOpenSettings = onOpenSettings,
         onWeightEntered = { weight -> vm.onWeightEntered(weight, onStartWorkout) },
-        onWeightSkipped = { vm.dismissWeightDialog(onStartWorkout) }
+        onWeightSkipped = { vm.dismissWeightDialog(onStartWorkout) },
+        onAchievementSeen = { code -> vm.markAchievementSeen(code) }
     )
 }
 
@@ -124,7 +126,8 @@ private fun HomeScreenContent(
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onWeightEntered: (Double) -> Unit,
-    onWeightSkipped: () -> Unit
+    onWeightSkipped: () -> Unit,
+    onAchievementSeen: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var weeklyAnalysis by remember { mutableStateOf<String?>(null) }
@@ -159,11 +162,17 @@ private fun HomeScreenContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Fitti",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Fitti",
+                            style = MaterialTheme.typography.headlineLarge,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        if (state.streakWeeks > 0) {
+                            Spacer(Modifier.width(12.dp))
+                            StreakChip(weeks = state.streakWeeks)
+                        }
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Text(
                             text = "\u2699",
@@ -171,6 +180,16 @@ private fun HomeScreenContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+            }
+
+            // Newly earned achievements
+            if (state.newAchievements.isNotEmpty()) {
+                items(state.newAchievements, key = { it.code }) { achievement ->
+                    AchievementCard(
+                        achievement = achievement,
+                        onDismiss = { onAchievementSeen(achievement.code) }
+                    )
                 }
             }
 
@@ -226,6 +245,22 @@ private fun HomeScreenContent(
                             )
                         }
                     }
+                }
+            }
+
+            // Balance Radar
+            if (state.balanceByGroup.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Balance",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    BalanceRadar(
+                        values = state.balanceByGroup,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
@@ -446,6 +481,70 @@ private fun HomeScreenContent(
 }
 
 @Composable
+private fun StreakChip(weeks: Int) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = "\uD83D\uDD25 $weeks Wochen",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun AchievementCard(achievement: Achievement, onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onDismiss),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = achievement.emoji,
+                fontSize = 32.sp
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Neu: ${achievement.title}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = achievement.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = "\u2713",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun MuscleGroupChip(label: String, status: MuscleGroupStatus) {
     val statusIcon = when (status) {
         MuscleGroupStatus.FRESH -> "\u2713"
@@ -453,16 +552,18 @@ private fun MuscleGroupChip(label: String, status: MuscleGroupStatus) {
         MuscleGroupStatus.OVERDUE -> "!"
         MuscleGroupStatus.NEVER -> "\u2013"
     }
+    val isOverdue = status == MuscleGroupStatus.OVERDUE
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Text(
             text = "$label $statusIcon",
             style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal,
             color = MaterialTheme.colorScheme.onSurface
         )
     }

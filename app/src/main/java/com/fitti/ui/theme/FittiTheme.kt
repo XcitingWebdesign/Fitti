@@ -9,21 +9,32 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+// 9-step grayscale palette. Hierarchy comes from weight/size, not hue.
+val Gray0 = Color(0xFF000000)
+val Gray1 = Color(0xFF121212) // background
+val Gray2 = Color(0xFF1E1E1E) // surface
+val Gray3 = Color(0xFF2C2C2C) // surface variant (cards)
+val Gray4 = Color(0xFF555555) // outline / dividers
+val Gray5 = Color(0xFF888888) // disabled / subtle
+val Gray6 = Color(0xFFB0B0B0) // secondary text
+val Gray7 = Color(0xFFE0E0E0) // accent (was blue)
+val Gray8 = Color(0xFFFFFFFF) // headings / pure white
+
 private val FittiDarkColors = darkColorScheme(
-    primary = Color(0xFF90CAF9),
-    onPrimary = Color.Black,
-    secondary = Color(0xFF4CAF50),
-    onSecondary = Color.White,
-    tertiary = Color(0xFFFFB74D),
-    error = Color(0xFFEF5350),
-    onError = Color.White,
-    background = Color(0xFF121212),
-    onBackground = Color.White,
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color.White,
-    surfaceVariant = Color(0xFF2C2C2C),
-    onSurfaceVariant = Color(0xFFB0B0B0),
-    outline = Color(0xFF555555)
+    primary = Gray8,
+    onPrimary = Gray1,
+    secondary = Gray6,
+    onSecondary = Gray1,
+    tertiary = Gray5,
+    error = Gray8,
+    onError = Gray1,
+    background = Gray1,
+    onBackground = Gray8,
+    surface = Gray2,
+    onSurface = Gray8,
+    surfaceVariant = Gray3,
+    onSurfaceVariant = Gray6,
+    outline = Gray4
 )
 
 private val FittiTypography = Typography(

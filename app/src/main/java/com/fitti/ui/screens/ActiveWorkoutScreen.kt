@@ -34,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -376,12 +375,12 @@ private fun TimerContent(
 
             // Big countdown
             Text(
-                text = if (isFinished) "Weiter!" else formatTime(remaining),
+                text = if (isFinished) "\u2713 Weiter!" else formatTime(remaining),
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontSize = if (isFinished) 48.sp else 72.sp,
                     fontWeight = FontWeight.Bold
                 ),
-                color = if (isFinished) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(Modifier.height(32.dp))
@@ -392,7 +391,7 @@ private fun TimerContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp),
-                color = if (isFinished) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
 
@@ -467,9 +466,10 @@ private fun ProgressionDialogContent(
             Spacer(Modifier.height(8.dp))
 
             Text(
-                text = "${exercise.targetSets}/${exercise.targetSets} S\u00e4tze geschafft",
+                text = "\u2713 ${exercise.targetSets}/${exercise.targetSets} S\u00e4tze geschafft",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF4CAF50)
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(Modifier.height(40.dp))
@@ -491,14 +491,14 @@ private fun ProgressionDialogContent(
                     .height(72.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
+                    containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 Text(
                     "Ja (+${exercise.progressionStepKg.cleanWeight()} \u2192 ${nextWeight.cleanWeight()})",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
 
@@ -549,10 +549,10 @@ private fun WorkoutSummaryContent(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Training abgeschlossen!",
+                        text = "\u2713 Training abgeschlossen!",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Spacer(Modifier.height(24.dp))
@@ -608,7 +608,7 @@ private fun WorkoutSummaryContent(
                                     Text(
                                         text = "${change.oldWeight.cleanWeight()} \u2192 ${change.newWeight.cleanWeight()} ${change.weightUnit}",
                                         style = MaterialTheme.typography.bodyLarge,
-                                        color = Color(0xFF4CAF50),
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
