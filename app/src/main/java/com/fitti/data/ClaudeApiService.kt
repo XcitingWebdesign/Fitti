@@ -459,8 +459,10 @@ class ClaudeApiService(
                         put("model", opusModel)
                         put("max_tokens", 12000)
                         put("thinking", JSONObject().apply {
-                            put("type", "enabled")
-                            put("budget_tokens", 8000)
+                            put("type", "adaptive")
+                        })
+                        put("output_config", JSONObject().apply {
+                            put("effort", "high")
                         })
                         put("system", systemPrompt)
                         put("messages", JSONArray().put(
