@@ -452,7 +452,7 @@ class ClaudeApiService(private val apiKey: String) {
                     connection.readTimeout = 120_000
 
                     val body = JSONObject().apply {
-                        put("model", "claude-opus-4-6")
+                        put("model", "claude-opus-4-7")
                         put("max_tokens", 12000)
                         put("thinking", JSONObject().apply {
                             put("type", "enabled")
