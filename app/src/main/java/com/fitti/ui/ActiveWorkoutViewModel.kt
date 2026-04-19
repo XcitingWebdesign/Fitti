@@ -43,7 +43,9 @@ data class ActiveWorkoutUiState(
     val isProcessing: Boolean = false,
     val sessionSummary: SessionSummary? = null,
     val isLoading: Boolean = true,
-    val nextExerciseName: String = ""
+    val nextExerciseName: String = "",
+    val nextExerciseSeatPosition: String = "",
+    val nextExercisePadPosition: String = ""
 )
 
 sealed class TimerState {
@@ -88,6 +90,12 @@ class ActiveWorkoutViewModel(
         val next = exerciseQueue.peek() ?: return ""
         return next.exerciseDisplayName.ifEmpty { next.exerciseCode }
     }
+
+    private fun peekNextExerciseSeatPosition(): String =
+        exerciseQueue.peek()?.exerciseSeatPosition ?: ""
+
+    private fun peekNextExercisePadPosition(): String =
+        exerciseQueue.peek()?.exercisePadPosition ?: ""
 
     init {
         loadSession()
@@ -197,7 +205,9 @@ class ActiveWorkoutViewModel(
                             completedExerciseCount = it.completedExerciseCount + 1,
                             isProcessing = false,
                             isExerciseTransition = true,
-                            nextExerciseName = peekNextExerciseName()
+                            nextExerciseName = peekNextExerciseName(),
+                            nextExerciseSeatPosition = peekNextExerciseSeatPosition(),
+                            nextExercisePadPosition = peekNextExercisePadPosition()
                         )
                     }
                     if (exerciseQueue.isEmpty()) {
@@ -240,7 +250,9 @@ class ActiveWorkoutViewModel(
                     completedExerciseCount = it.completedExerciseCount + 1,
                     showProgressionDialog = false,
                     isExerciseTransition = true,
-                    nextExerciseName = peekNextExerciseName()
+                    nextExerciseName = peekNextExerciseName(),
+                    nextExerciseSeatPosition = peekNextExerciseSeatPosition(),
+                    nextExercisePadPosition = peekNextExercisePadPosition()
                 )
             }
 
@@ -259,6 +271,8 @@ class ActiveWorkoutViewModel(
         _uiState.update {
             it.copy(
                 nextExerciseName = peekNextExerciseName(),
+                nextExerciseSeatPosition = peekNextExerciseSeatPosition(),
+                nextExercisePadPosition = peekNextExercisePadPosition(),
                 skippedCount = it.skippedCount + 1
             )
         }

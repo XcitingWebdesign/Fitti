@@ -108,6 +108,8 @@ fun ActiveWorkoutScreen(
                 totalSets = state.currentExercise!!.targetSets,
                 isExerciseTransition = state.isExerciseTransition,
                 nextExerciseName = state.nextExerciseName,
+                nextExerciseSeatPosition = state.nextExerciseSeatPosition,
+                nextExercisePadPosition = state.nextExercisePadPosition,
                 onSkipTimer = { vm.onTimerSkipped() },
                 onSkipNextExercise = { vm.onSkipNextExerciseDuringTimer() }
             )
@@ -331,6 +333,8 @@ private fun TimerContent(
     totalSets: Int,
     isExerciseTransition: Boolean = false,
     nextExerciseName: String = "",
+    nextExerciseSeatPosition: String = "",
+    nextExercisePadPosition: String = "",
     onSkipTimer: () -> Unit,
     onSkipNextExercise: () -> Unit = {}
 ) {
@@ -409,6 +413,24 @@ private fun TimerContent(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
+
+                val nextPositionParts = mutableListOf<String>()
+                if (nextExerciseSeatPosition.isNotBlank()) {
+                    nextPositionParts.add("S$nextExerciseSeatPosition")
+                }
+                if (nextExercisePadPosition.isNotBlank()) {
+                    nextPositionParts.add("P$nextExercisePadPosition")
+                }
+                if (nextPositionParts.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = nextPositionParts.joinToString(" \u2022 "),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = onSkipNextExercise) {
                     Text(
