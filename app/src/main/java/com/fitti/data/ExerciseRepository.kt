@@ -31,6 +31,10 @@ class ExerciseRepository(
         dao.updatePositions(exerciseId, seat, pad)
     }
 
+    suspend fun updateWeightSteps(exerciseId: Long, steps: String) {
+        dao.updateWeightSteps(exerciseId, steps)
+    }
+
     suspend fun addExercise(entity: ExerciseEntity): Long =
         dao.insert(entity)
 
@@ -51,7 +55,7 @@ class ExerciseRepository(
         dao.insertAll(
             listOf(
                 ExerciseEntity(code = "B2", brand = "Nautilus", displayName = "Chest Press", muscleGroup = "CHEST", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 0, weightSteps = nautilusStack),
-                ExerciseEntity(code = "B6", brand = "Nautilus", displayName = "Leg Press", muscleGroup = "LEGS", currentWeight = 160.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 1),
+                ExerciseEntity(code = "B6", brand = "Nautilus", displayName = "Leg Press", muscleGroup = "LEGS", currentWeight = 160.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 1, weightSteps = ExerciseEntity.NAUTILUS_HEAVY_STACK_KG),
                 ExerciseEntity(code = "C2", brand = "Nautilus", displayName = "Seated Row", muscleGroup = "BACK", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 2, weightSteps = nautilusStack),
                 ExerciseEntity(code = "C6", brand = "Nautilus", displayName = "Butterfly", muscleGroup = "CHEST", currentWeight = 41.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 3, weightSteps = nautilusStack),
                 ExerciseEntity(code = "D3", brand = "Nautilus", displayName = "Shoulder Press", muscleGroup = "SHOULDERS", currentWeight = 36.0, weightUnit = "kg", recordedOn = "22.02.2026", progressionStepKg = 5.0, sortOrder = 4, weightSteps = nautilusStack),

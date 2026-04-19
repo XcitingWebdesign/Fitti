@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WeightLogEntity::class,
         AiAnalysisEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class FittiDatabase : RoomDatabase() {
@@ -177,9 +177,16 @@ abstract class FittiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val heavy = ExerciseEntity.NAUTILUS_HEAVY_STACK_KG
+                db.execSQL("UPDATE exercises SET weightSteps = '$heavy' WHERE code = 'B6' AND (weightSteps = '' OR weightSteps IS NULL)")
+            }
+        }
+
         fun create(context: Context): FittiDatabase =
             Room.databaseBuilder(context, FittiDatabase::class.java, "fitti.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .build()
     }
 }
