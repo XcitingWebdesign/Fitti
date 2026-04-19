@@ -56,6 +56,7 @@ import com.fitti.data.WeightLogEntity
 import com.fitti.data.WorkoutSessionDao
 import com.fitti.data.WorkoutSessionEntity
 import com.fitti.domain.Exercise
+import com.fitti.domain.ProgressionService
 import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.formatDate
 import com.fitti.ui.common.formatDateTime
@@ -98,6 +99,7 @@ fun SettingsScreen(
     var exerciseWeights by remember { mutableStateOf(emptyMap<Long, String>()) }
     var exerciseSeats by remember { mutableStateOf(emptyMap<Long, String>()) }
     var exercisePads by remember { mutableStateOf(emptyMap<Long, String>()) }
+    var exerciseStacks by remember { mutableStateOf(emptyMap<Long, String>()) }
 
     // Add exercise dialog state
     var showAddDialog by remember { mutableStateOf(false) }
@@ -160,6 +162,7 @@ fun SettingsScreen(
                     exerciseSteps = list.associate { it.id to it.progressionStepKg.toString() }
                     exerciseSeats = list.associate { it.id to it.seatPosition }
                     exercisePads = list.associate { it.id to it.padPosition }
+                    exerciseStacks = list.associate { it.id to it.weightSteps }
                 }
             }
         }
@@ -461,6 +464,18 @@ fun SettingsScreen(
                             singleLine = true
                         )
                     }
+
+                    // Weight stack CSV editor
+                    OutlinedTextField(
+                        value = exerciseStacks[exercise.id] ?: exercise.weightSteps,
+                        onValueChange = { exerciseStacks = exerciseStacks + (exercise.id to it) },
+                        label = { Text("Gewichtsstufen (${exercise.weightUnit}, Komma)") },
+                        placeholder = { Text("z.B. 9,14,18,23,27,...") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 44.dp),
+                        singleLine = true
+                    )
                 }
             }
 
@@ -639,6 +654,15 @@ fun SettingsScreen(
                                 val seat = exerciseSeats[ex.id] ?: ex.seatPosition
                                 val pad = exercisePads[ex.id] ?: ex.padPosition
                                 exerciseRepo.updatePositions(ex.id, seat.trim(), pad.trim())
+                                val stackText = exerciseStacks[ex.id]
+                                if (stackText != null) {
+                                    val normalized = stackText.trim()
+                                    if (normalized.isEmpty()) {
+                                        exerciseRepo.updateWeightSteps(ex.id, "")
+                                    } else if (ProgressionService.parseWeightSteps(normalized).isNotEmpty()) {
+                                        exerciseRepo.updateWeightSteps(ex.id, normalized)
+                                    }
+                                }
                                 val weightText = exerciseWeights[ex.id]
                                 if (weightText != null) {
                                     val w = weightText.replace(",", ".").toDoubleOrNull()
