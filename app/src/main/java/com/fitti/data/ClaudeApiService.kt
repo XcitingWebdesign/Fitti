@@ -7,7 +7,11 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-class ClaudeApiService(private val apiKey: String) {
+class ClaudeApiService(
+    private val apiKey: String,
+    private val sonnetModel: String = SettingsRepository.DEFAULT_SONNET_MODEL,
+    private val opusModel: String = SettingsRepository.DEFAULT_OPUS_MODEL,
+) {
 
     suspend fun getWorkoutFeedback(
         history: WorkoutSessionHistory,
@@ -402,7 +406,7 @@ class ClaudeApiService(private val apiKey: String) {
                     connection.readTimeout = 60_000
 
                     val body = JSONObject().apply {
-                        put("model", "claude-sonnet-4-6")
+                        put("model", sonnetModel)
                         put("max_tokens", 1024)
                         put("system", systemPrompt)
                         put("messages", JSONArray().put(
@@ -452,7 +456,7 @@ class ClaudeApiService(private val apiKey: String) {
                     connection.readTimeout = 120_000
 
                     val body = JSONObject().apply {
-                        put("model", "claude-opus-4-6")
+                        put("model", opusModel)
                         put("max_tokens", 12000)
                         put("thinking", JSONObject().apply {
                             put("type", "enabled")

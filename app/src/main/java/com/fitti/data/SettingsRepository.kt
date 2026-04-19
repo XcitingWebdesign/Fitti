@@ -40,6 +40,16 @@ class SettingsRepository(context: Context) {
         get() = prefs.getString(KEY_CLAUDE_API_KEY, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CLAUDE_API_KEY, value).apply()
 
+    var claudeSonnetModel: String
+        get() = prefs.getString(KEY_CLAUDE_SONNET_MODEL, DEFAULT_SONNET_MODEL)
+            ?.ifBlank { DEFAULT_SONNET_MODEL } ?: DEFAULT_SONNET_MODEL
+        set(value) = prefs.edit().putString(KEY_CLAUDE_SONNET_MODEL, value).apply()
+
+    var claudeOpusModel: String
+        get() = prefs.getString(KEY_CLAUDE_OPUS_MODEL, DEFAULT_OPUS_MODEL)
+            ?.ifBlank { DEFAULT_OPUS_MODEL } ?: DEFAULT_OPUS_MODEL
+        set(value) = prefs.edit().putString(KEY_CLAUDE_OPUS_MODEL, value).apply()
+
     fun getSeenAchievements(): Set<String> =
         prefs.getStringSet(KEY_SEEN_ACHIEVEMENTS, emptySet())?.toSet() ?: emptySet()
 
@@ -58,6 +68,11 @@ class SettingsRepository(context: Context) {
         private const val KEY_HEIGHT_CM = "height_cm"
         private const val KEY_GOAL = "goal"
         private const val KEY_CLAUDE_API_KEY = "claude_api_key"
+        private const val KEY_CLAUDE_SONNET_MODEL = "claude_sonnet_model"
+        private const val KEY_CLAUDE_OPUS_MODEL = "claude_opus_model"
         private const val KEY_SEEN_ACHIEVEMENTS = "seen_achievements"
+
+        const val DEFAULT_SONNET_MODEL = "claude-sonnet-4-6"
+        const val DEFAULT_OPUS_MODEL = "claude-opus-4-7"
     }
 }

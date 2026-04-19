@@ -166,7 +166,11 @@ fun HistoryDetailScreen(
                             val weight = weightLogDao.getLatest()?.weightKg
                             val allHistories = workoutRepo.observeSessionHistories().first()
                             val allWeightLogs = weightLogDao.getAll()
-                            val service = ClaudeApiService(settingsRepo.claudeApiKey)
+                            val service = ClaudeApiService(
+                                apiKey = settingsRepo.claudeApiKey,
+                                sonnetModel = settingsRepo.claudeSonnetModel,
+                                opusModel = settingsRepo.claudeOpusModel,
+                            )
                             service.getWorkoutFeedback(
                                 history = history,
                                 userGoal = settingsRepo.goal,

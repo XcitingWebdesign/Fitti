@@ -329,7 +329,11 @@ private fun HomeScreenContent(
                                     }
                                     val weight = weightLogDao.getLatest()?.weightKg
                                     val allWeightLogs = weightLogDao.getAll()
-                                    val service = ClaudeApiService(settingsRepo.claudeApiKey)
+                                    val service = ClaudeApiService(
+                                        apiKey = settingsRepo.claudeApiKey,
+                                        sonnetModel = settingsRepo.claudeSonnetModel,
+                                        opusModel = settingsRepo.claudeOpusModel,
+                                    )
                                     service.getWeeklyCoaching(
                                         sessions = recentHistories,
                                         userGoal = settingsRepo.goal,
