@@ -73,6 +73,7 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 - Default Pause: 60s
 - Freitext-Ziel im Profil (mehrzeiliges Eingabefeld, auf Home Screen angezeigt)
 - Claude API-Schluessel Speicherung in Einstellungen (fuer KI-Feedback)
+- Claude Modell-IDs (Sonnet/Opus) in Einstellungen konfigurierbar, Defaults in SettingsRepository
 - Shared Debug Keystore fuer konsistente APK-Signierung (CI + lokal)
 - Geraete hinzufuegen/entfernen in Einstellungen (Add-Dialog mit Muskelgruppe, Delete mit Bestaetigung)
 - Muskelgruppe ARMS im Add-Dialog waehlbar (alle 5 Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS)

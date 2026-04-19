@@ -86,6 +86,8 @@ fun SettingsScreen(
 
     var goal by remember { mutableStateOf(settingsRepo.goal) }
     var apiKey by remember { mutableStateOf(settingsRepo.claudeApiKey) }
+    var sonnetModel by remember { mutableStateOf(settingsRepo.claudeSonnetModel) }
+    var opusModel by remember { mutableStateOf(settingsRepo.claudeOpusModel) }
     var heightCm by remember { mutableStateOf(settingsRepo.heightCm.let { if (it == 0) "" else it.toString() }) }
     var weightKg by remember { mutableStateOf("") }
     var repsMin by remember { mutableStateOf(settingsRepo.repsMin.toString()) }
@@ -609,6 +611,28 @@ fun SettingsScreen(
                 )
             }
 
+            item {
+                OutlinedTextField(
+                    value = sonnetModel,
+                    onValueChange = { sonnetModel = it },
+                    label = { Text("Sonnet Modell-ID") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    supportingText = { Text("F\u00fcr Post-Workout-Feedback. Default: ${SettingsRepository.DEFAULT_SONNET_MODEL}") }
+                )
+            }
+
+            item {
+                OutlinedTextField(
+                    value = opusModel,
+                    onValueChange = { opusModel = it },
+                    label = { Text("Opus Modell-ID") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    supportingText = { Text("F\u00fcr W\u00f6chentliches Coaching. Default: ${SettingsRepository.DEFAULT_OPUS_MODEL}") }
+                )
+            }
+
             // Save button
             item {
                 Spacer(Modifier.height(16.dp))
@@ -625,6 +649,10 @@ fun SettingsScreen(
                         settingsRepo.goal = goal
                         settingsRepo.heightCm = heightCm.toIntOrNull()?.coerceIn(0, 300) ?: 0
                         settingsRepo.claudeApiKey = apiKey.trim()
+                        settingsRepo.claudeSonnetModel = sonnetModel.trim()
+                            .ifBlank { SettingsRepository.DEFAULT_SONNET_MODEL }
+                        settingsRepo.claudeOpusModel = opusModel.trim()
+                            .ifBlank { SettingsRepository.DEFAULT_OPUS_MODEL }
 
                         val weight = weightKg.replace(",", ".").toDoubleOrNull()
                         if (weight != null && weight in 20.0..300.0) {
