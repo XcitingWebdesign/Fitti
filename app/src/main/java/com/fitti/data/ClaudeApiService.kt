@@ -393,6 +393,8 @@ class ClaudeApiService(
 
     private suspend fun callClaude(systemPrompt: String, userMessage: String): Result<String> =
         withContext(Dispatchers.IO) {
+            val started = System.currentTimeMillis()
+            var phase = "connect"
             try {
                 val url = URL("https://api.anthropic.com/v1/messages")
                 val connection = url.openConnection() as HttpURLConnection
@@ -417,10 +419,12 @@ class ClaudeApiService(
                         ))
                     }
 
+                    phase = "write"
                     connection.outputStream.use { os ->
                         os.write(body.toString().toByteArray(Charsets.UTF_8))
                     }
 
+                    phase = "read"
                     val responseCode = connection.responseCode
                     if (responseCode != 200) {
                         val errorBody = connection.errorStream?.use { it.bufferedReader().readText() } ?: "Unbekannter Fehler"
@@ -437,12 +441,14 @@ class ClaudeApiService(
                     connection.disconnect()
                 }
             } catch (e: Exception) {
-                Result.failure(e)
+                Result.failure(diagnosticException(e, phase, started))
             }
         }
 
     private suspend fun callClaudeWithThinking(systemPrompt: String, userMessage: String): Result<String> =
         withContext(Dispatchers.IO) {
+            val started = System.currentTimeMillis()
+            var phase = "connect"
             try {
                 val url = URL("https://api.anthropic.com/v1/messages")
                 val connection = url.openConnection() as HttpURLConnection
@@ -473,10 +479,12 @@ class ClaudeApiService(
                         ))
                     }
 
+                    phase = "write"
                     connection.outputStream.use { os ->
                         os.write(body.toString().toByteArray(Charsets.UTF_8))
                     }
 
+                    phase = "read"
                     val responseCode = connection.responseCode
                     if (responseCode != 200) {
                         val errorBody = connection.errorStream?.use { it.bufferedReader().readText() } ?: "Unbekannter Fehler"
@@ -505,7 +513,14 @@ class ClaudeApiService(
                     connection.disconnect()
                 }
             } catch (e: Exception) {
-                Result.failure(e)
+                Result.failure(diagnosticException(e, phase, started))
             }
         }
+
+    private fun diagnosticException(e: Exception, phase: String, startedMs: Long): Exception {
+        val ms = System.currentTimeMillis() - startedMs
+        val cls = e.javaClass.simpleName
+        val cause = e.cause?.javaClass?.simpleName?.let { " (cause: $it)" } ?: ""
+        return Exception("$cls$cause @$phase nach ${ms}ms: ${e.message}", e)
+    }
 }
