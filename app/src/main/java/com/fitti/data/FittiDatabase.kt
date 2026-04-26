@@ -14,9 +14,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SessionExerciseEntity::class,
         SetLogEntity::class,
         WeightLogEntity::class,
-        AiAnalysisEntity::class
+        AiAnalysisEntity::class,
+        CoachingPlanEntity::class,
+        CoachingPlanExerciseTargetEntity::class,
+        NutritionLogEntity::class,
+        BodyMeasurementEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class FittiDatabase : RoomDatabase() {
@@ -24,6 +28,9 @@ abstract class FittiDatabase : RoomDatabase() {
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun weightLogDao(): WeightLogDao
     abstract fun aiAnalysisDao(): AiAnalysisDao
+    abstract fun coachingPlanDao(): CoachingPlanDao
+    abstract fun nutritionLogDao(): NutritionLogDao
+    abstract fun bodyMeasurementDao(): BodyMeasurementDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -184,9 +191,74 @@ abstract class FittiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `coaching_plans` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `createdAt` TEXT NOT NULL,
+                        `validUntil` TEXT NOT NULL,
+                        `rawJson` TEXT NOT NULL,
+                        `bottleneckType` TEXT NOT NULL,
+                        `bottleneckTarget` REAL NOT NULL,
+                        `bottleneckCurrent` REAL NOT NULL,
+                        `weeklyProteinG` INTEGER NOT NULL,
+                        `weeklyKcal` INTEGER NOT NULL,
+                        `weeklySessions` INTEGER NOT NULL,
+                        `weeklyBodyweightKg` REAL NOT NULL
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `coaching_plan_exercise_targets` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `planId` INTEGER NOT NULL,
+                        `exerciseCode` TEXT NOT NULL,
+                        `action` TEXT NOT NULL,
+                        `targetWeightKg` REAL NOT NULL,
+                        `reasonText` TEXT NOT NULL,
+                        FOREIGN KEY(`planId`) REFERENCES `coaching_plans`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_coaching_plan_exercise_targets_planId` ON `coaching_plan_exercise_targets` (`planId`)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `nutrition_logs` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `proteinHit` INTEGER NOT NULL,
+                        `weightKg` REAL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_nutrition_logs_date` ON `nutrition_logs` (`date`)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `body_measurements` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `measuredAt` TEXT NOT NULL,
+                        `chestCm` REAL NOT NULL,
+                        `waistCm` REAL NOT NULL,
+                        `bicepsCm` REAL NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun create(context: Context): FittiDatabase =
             Room.databaseBuilder(context, FittiDatabase::class.java, "fitti.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+                    MIGRATION_9_10
+                )
                 .build()
     }
 }

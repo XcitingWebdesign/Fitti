@@ -79,6 +79,9 @@ fun SettingsScreen(
     weightLogDao: WeightLogDao,
     exerciseRepo: ExerciseRepository,
     workoutSessionDao: WorkoutSessionDao,
+    coachingPlanDao: com.fitti.data.CoachingPlanDao,
+    nutritionLogDao: com.fitti.data.NutritionLogDao,
+    bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -102,6 +105,12 @@ fun SettingsScreen(
     var exerciseSeats by remember { mutableStateOf(emptyMap<Long, String>()) }
     var exercisePads by remember { mutableStateOf(emptyMap<Long, String>()) }
     var exerciseStacks by remember { mutableStateOf(emptyMap<Long, String>()) }
+
+    // Notification toggles
+    var dailyReminderEnabled by remember { mutableStateOf(settingsRepo.dailyReminderEnabled) }
+    var dailyReminderHour by remember { mutableStateOf(settingsRepo.dailyReminderHour.toString()) }
+    var monthlyMeasurementEnabled by remember { mutableStateOf(settingsRepo.monthlyMeasurementReminderEnabled) }
+    var weeklyCoachingEnabled by remember { mutableStateOf(settingsRepo.weeklyCoachingReminderEnabled) }
 
     // Add exercise dialog state
     var showAddDialog by remember { mutableStateOf(false) }
@@ -327,6 +336,100 @@ fun SettingsScreen(
                 )
             }
 
+            // Notifications section
+            item {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Benachrichtigungen",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Tägliche Erinnerung", style = MaterialTheme.typography.bodyLarge)
+                        Text("Protein + Gewicht (Standard: 20 Uhr)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = dailyReminderEnabled,
+                        onCheckedChange = {
+                            dailyReminderEnabled = it
+                            settingsRepo.dailyReminderEnabled = it
+                            com.fitti.notifications.NotificationScheduler.applyAll(context, settingsRepo)
+                        }
+                    )
+                }
+            }
+
+            item {
+                OutlinedTextField(
+                    value = dailyReminderHour,
+                    onValueChange = {
+                        dailyReminderHour = it
+                        it.toIntOrNull()?.takeIf { v -> v in 0..23 }?.let { v ->
+                            settingsRepo.dailyReminderHour = v
+                            com.fitti.notifications.NotificationScheduler.applyAll(context, settingsRepo)
+                        }
+                    },
+                    label = { Text("Uhrzeit (0–23)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = dailyReminderEnabled
+                )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Tape-Maße (monatlich)", style = MaterialTheme.typography.bodyLarge)
+                        Text("Erinnerung wenn 30+ Tage her", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = monthlyMeasurementEnabled,
+                        onCheckedChange = {
+                            monthlyMeasurementEnabled = it
+                            settingsRepo.monthlyMeasurementReminderEnabled = it
+                            com.fitti.notifications.NotificationScheduler.applyAll(context, settingsRepo)
+                        }
+                    )
+                }
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Wöchentliches Coaching", style = MaterialTheme.typography.bodyLarge)
+                        Text("Erinnerung wenn 7+ Tage seit letztem Coaching", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = weeklyCoachingEnabled,
+                        onCheckedChange = {
+                            weeklyCoachingEnabled = it
+                            settingsRepo.weeklyCoachingReminderEnabled = it
+                            com.fitti.notifications.NotificationScheduler.applyAll(context, settingsRepo)
+                        }
+                    )
+                }
+            }
+
             // Exercises section
             item {
                 Spacer(Modifier.height(8.dp))
@@ -516,7 +619,9 @@ fun SettingsScreen(
                         onClick = {
                             scope.launch {
                                 val json = exportFullBackup(
-                                    exerciseRepo, workoutSessionDao, weightLogDao, settingsRepo
+                                    exerciseRepo, workoutSessionDao, weightLogDao,
+                                    coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
+                                    settingsRepo
                                 )
                                 shareText(context, json, "fitti_backup_${
                                     SimpleDateFormat("yyyyMMdd", Locale.GERMANY).format(Date())
@@ -759,7 +864,9 @@ fun SettingsScreen(
                                 val json = context.contentResolver.openInputStream(uri)
                                     ?.bufferedReader()?.use { it.readText() } ?: return@launch
                                 val count = importFullBackup(
-                                    json, exerciseRepo, workoutSessionDao, weightLogDao, settingsRepo
+                                    json, exerciseRepo, workoutSessionDao, weightLogDao,
+                                    coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
+                                    settingsRepo
                                 )
                                 backupMessage = "Backup wiederhergestellt ($count Trainings)"
                             } catch (e: Exception) {
@@ -1037,6 +1144,9 @@ private suspend fun exportFullBackup(
     exerciseRepo: ExerciseRepository,
     workoutSessionDao: WorkoutSessionDao,
     weightLogDao: WeightLogDao,
+    coachingPlanDao: com.fitti.data.CoachingPlanDao,
+    nutritionLogDao: com.fitti.data.NutritionLogDao,
+    bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
     settingsRepo: SettingsRepository
 ): String = withContext(Dispatchers.IO) {
     val root = JSONObject()
@@ -1144,6 +1254,67 @@ private suspend fun exportFullBackup(
     }
     root.put("weightLogs", wlArr)
 
+    // Coaching plans + targets
+    val plans = coachingPlanDao.getAllPlans()
+    val plansArr = JSONArray()
+    for (p in plans) {
+        val obj = JSONObject()
+        obj.put("id", p.id)
+        obj.put("createdAt", p.createdAt)
+        obj.put("validUntil", p.validUntil)
+        obj.put("rawJson", p.rawJson)
+        obj.put("bottleneckType", p.bottleneckType)
+        obj.put("bottleneckTarget", p.bottleneckTarget)
+        obj.put("bottleneckCurrent", p.bottleneckCurrent)
+        obj.put("weeklyProteinG", p.weeklyProteinG)
+        obj.put("weeklyKcal", p.weeklyKcal)
+        obj.put("weeklySessions", p.weeklySessions)
+        obj.put("weeklyBodyweightKg", p.weeklyBodyweightKg)
+        plansArr.put(obj)
+    }
+    root.put("coachingPlans", plansArr)
+
+    val targets = coachingPlanDao.getAllTargets()
+    val targetsArr = JSONArray()
+    for (t in targets) {
+        val obj = JSONObject()
+        obj.put("id", t.id)
+        obj.put("planId", t.planId)
+        obj.put("exerciseCode", t.exerciseCode)
+        obj.put("action", t.action)
+        obj.put("targetWeightKg", t.targetWeightKg)
+        obj.put("reasonText", t.reasonText)
+        targetsArr.put(obj)
+    }
+    root.put("coachingPlanTargets", targetsArr)
+
+    // Nutrition logs
+    val nutritionLogs = nutritionLogDao.getAll()
+    val nutritionArr = JSONArray()
+    for (n in nutritionLogs) {
+        val obj = JSONObject()
+        obj.put("id", n.id)
+        obj.put("date", n.date)
+        obj.put("proteinHit", n.proteinHit)
+        obj.put("weightKg", n.weightKg ?: JSONObject.NULL)
+        nutritionArr.put(obj)
+    }
+    root.put("nutritionLogs", nutritionArr)
+
+    // Body measurements
+    val measurements = bodyMeasurementDao.getAll()
+    val measurementsArr = JSONArray()
+    for (m in measurements) {
+        val obj = JSONObject()
+        obj.put("id", m.id)
+        obj.put("measuredAt", m.measuredAt)
+        obj.put("chestCm", m.chestCm)
+        obj.put("waistCm", m.waistCm)
+        obj.put("bicepsCm", m.bicepsCm)
+        measurementsArr.put(obj)
+    }
+    root.put("bodyMeasurements", measurementsArr)
+
     root.toString(2)
 }
 
@@ -1152,6 +1323,9 @@ private suspend fun importFullBackup(
     exerciseRepo: ExerciseRepository,
     workoutSessionDao: WorkoutSessionDao,
     weightLogDao: WeightLogDao,
+    coachingPlanDao: com.fitti.data.CoachingPlanDao,
+    nutritionLogDao: com.fitti.data.NutritionLogDao,
+    bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
     settingsRepo: SettingsRepository
 ): Int = withContext(Dispatchers.IO) {
     val root = JSONObject(json)
@@ -1174,6 +1348,10 @@ private suspend fun importFullBackup(
     workoutSessionDao.deleteAllSessionExercises()
     workoutSessionDao.deleteAllSessions()
     weightLogDao.deleteAll()
+    coachingPlanDao.deleteAllTargets()
+    coachingPlanDao.deleteAllPlans()
+    nutritionLogDao.deleteAll()
+    bodyMeasurementDao.deleteAll()
 
     // Import exercises
     val exercisesArr = root.getJSONArray("exercises")
@@ -1278,6 +1456,87 @@ private suspend fun importFullBackup(
         )
     }
     weightLogDao.insertAll(weightLogs)
+
+    // Import coaching plans
+    val plansArr = root.optJSONArray("coachingPlans")
+    if (plansArr != null) {
+        val plans = mutableListOf<com.fitti.data.CoachingPlanEntity>()
+        for (i in 0 until plansArr.length()) {
+            val obj = plansArr.getJSONObject(i)
+            plans.add(
+                com.fitti.data.CoachingPlanEntity(
+                    id = obj.getLong("id"),
+                    createdAt = obj.getString("createdAt"),
+                    validUntil = obj.optString("validUntil", ""),
+                    rawJson = obj.optString("rawJson", ""),
+                    bottleneckType = obj.optString("bottleneckType", ""),
+                    bottleneckTarget = obj.optDouble("bottleneckTarget", 0.0),
+                    bottleneckCurrent = obj.optDouble("bottleneckCurrent", 0.0),
+                    weeklyProteinG = obj.optInt("weeklyProteinG", 0),
+                    weeklyKcal = obj.optInt("weeklyKcal", 0),
+                    weeklySessions = obj.optInt("weeklySessions", 0),
+                    weeklyBodyweightKg = obj.optDouble("weeklyBodyweightKg", 0.0)
+                )
+            )
+        }
+        coachingPlanDao.insertAllPlans(plans)
+    }
+
+    val targetsArr = root.optJSONArray("coachingPlanTargets")
+    if (targetsArr != null) {
+        val targets = mutableListOf<com.fitti.data.CoachingPlanExerciseTargetEntity>()
+        for (i in 0 until targetsArr.length()) {
+            val obj = targetsArr.getJSONObject(i)
+            targets.add(
+                com.fitti.data.CoachingPlanExerciseTargetEntity(
+                    id = obj.getLong("id"),
+                    planId = obj.getLong("planId"),
+                    exerciseCode = obj.getString("exerciseCode"),
+                    action = obj.optString("action", "progress"),
+                    targetWeightKg = obj.optDouble("targetWeightKg", 0.0),
+                    reasonText = obj.optString("reasonText", "")
+                )
+            )
+        }
+        coachingPlanDao.insertAllTargets(targets)
+    }
+
+    // Import nutrition logs
+    val nutritionArr = root.optJSONArray("nutritionLogs")
+    if (nutritionArr != null) {
+        val logs = mutableListOf<com.fitti.data.NutritionLogEntity>()
+        for (i in 0 until nutritionArr.length()) {
+            val obj = nutritionArr.getJSONObject(i)
+            logs.add(
+                com.fitti.data.NutritionLogEntity(
+                    id = obj.getLong("id"),
+                    date = obj.getString("date"),
+                    proteinHit = obj.optBoolean("proteinHit", false),
+                    weightKg = if (obj.isNull("weightKg")) null else obj.optDouble("weightKg")
+                )
+            )
+        }
+        nutritionLogDao.insertAll(logs)
+    }
+
+    // Import body measurements
+    val measurementsArr = root.optJSONArray("bodyMeasurements")
+    if (measurementsArr != null) {
+        val measurements = mutableListOf<com.fitti.data.BodyMeasurementEntity>()
+        for (i in 0 until measurementsArr.length()) {
+            val obj = measurementsArr.getJSONObject(i)
+            measurements.add(
+                com.fitti.data.BodyMeasurementEntity(
+                    id = obj.getLong("id"),
+                    measuredAt = obj.getString("measuredAt"),
+                    chestCm = obj.getDouble("chestCm"),
+                    waistCm = obj.getDouble("waistCm"),
+                    bicepsCm = obj.getDouble("bicepsCm")
+                )
+            )
+        }
+        bodyMeasurementDao.insertAll(measurements)
+    }
 
     sessions.size
 }

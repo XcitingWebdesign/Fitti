@@ -294,7 +294,29 @@ class ClaudeApiService(
                 "- Verwende die tats\u00e4chlichen Zahlen aus den Trainingsdaten\n" +
                 "- Wenn kein Ziel gesetzt ist, empfiehl dem Klienten, eines zu setzen, und arbeite trotzdem mit den verf\u00fcgbaren Daten\n" +
                 "- Wenn kein vorheriges Coaching vorhanden ist, \u00fcberspringe den Abschnitt \"Fortschritt seit letztem Coaching\"\n" +
-                "- Verwende KEINE Markdown-Tabellen. Nutze stattdessen Aufz\u00e4hlungen (Spiegelstriche) f\u00fcr \u00dcbungsvergleiche und Gewichtsdaten."
+                "- Verwende KEINE Markdown-Tabellen. Nutze stattdessen Aufz\u00e4hlungen (Spiegelstriche) f\u00fcr \u00dcbungsvergleiche und Gewichtsdaten.\n\n" +
+                "STRUKTURIERTER PLAN (verpflichtend am Ende deiner Antwort):\n" +
+                "H\u00e4nge nach dem deutschen Coaching-Text einen XML-Block <plan>...</plan> an, der ein JSON-Objekt enth\u00e4lt. Die App liest diesen Block, um deine Vorgaben in den Trainingsalltag des Klienten zu integrieren. Format:\n\n" +
+                "<plan>\n" +
+                "{\n" +
+                "  \"valid_until\": \"YYYY-MM-DD\" (Datum 7 Tage in der Zukunft),\n" +
+                "  \"bottleneck\": {\n" +
+                "    \"type\": \"bodyweight\" oder \"protein\" oder \"sessions\" oder \"progression\",\n" +
+                "    \"target\": Zahl (Zielwert),\n" +
+                "    \"current\": Zahl (aktueller Wert)\n" +
+                "  },\n" +
+                "  \"weekly\": {\n" +
+                "    \"protein_g\": Zahl (g Protein/Tag),\n" +
+                "    \"kcal\": Zahl (kcal/Tag),\n" +
+                "    \"sessions\": Zahl (Trainingseinheiten/Woche),\n" +
+                "    \"bodyweight_kg\": Zahl (Wochen-Ziel-K\u00f6rpergewicht)\n" +
+                "  },\n" +
+                "  \"exercise_targets\": [\n" +
+                "    {\"code\": \"\u00dcbungscode (B2/B6/C2/C6/D3/D4/F3/F6)\", \"action\": \"progress\" oder \"hold\" oder \"deload\", \"weight_kg\": Zielgewicht, \"reason\": \"kurze Begr\u00fcndung\"}\n" +
+                "  ]\n" +
+                "}\n" +
+                "</plan>\n\n" +
+                "Der bottleneck ist die EINE Zahl, die diese Woche am wichtigsten ist (z.B. K\u00f6rpergewicht-Ziel, wenn der Klient Untergewicht hat). F\u00fchre f\u00fcr JEDE der 8 \u00dcbungen einen Eintrag in exercise_targets auf. action=\"hold\" wenn die letzte Session inkonsistent war (z.B. 10/12 Wdh statt 12/12). action=\"progress\" wenn alle S\u00e4tze sauber bei Max-Reps geschafft wurden. Verwende ausschlie\u00dflich kg, keine lb."
 
         val userMessage = buildString {
             appendLine("=== Trainings der letzten Woche (${sessions.size} Einheiten) ===")
