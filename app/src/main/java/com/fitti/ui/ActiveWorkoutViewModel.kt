@@ -1,12 +1,11 @@
 package com.fitti.ui
 
 import android.app.Application
+import android.media.AudioAttributes
+import android.media.AudioFormat
 import android.media.AudioManager
-import android.media.RingtoneManager
-import android.media.ToneGenerator
+import android.media.AudioTrack
 import android.os.CountDownTimer
-import android.os.Handler
-import android.os.Looper
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.content.Context
@@ -20,6 +19,8 @@ import com.fitti.data.WorkoutSessionRepository
 import com.fitti.domain.ProgressionService
 import com.fitti.ui.common.formatDateTime
 import com.fitti.ui.common.parseDateTime
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.ArrayDeque
 import java.util.Date
+import kotlin.math.sin
 
 data class ActiveWorkoutUiState(
     val currentExercise: SessionExerciseEntity? = null,
@@ -85,6 +87,9 @@ class ActiveWorkoutViewModel(
     private var countDownTimer: CountDownTimer? = null
     private var sessionStartTime: Date? = null
     private var advanceToNextExerciseAfterTimer = false
+    private var pendingChimeKind: ChimeKind = ChimeKind.SET
+
+    private enum class ChimeKind { SET, EXERCISE }
 
     private fun peekNextExerciseName(): String {
         val next = exerciseQueue.peek() ?: return ""
@@ -214,12 +219,12 @@ class ActiveWorkoutViewModel(
                         showCurrentExercise() // will call finishWorkout()
                     } else {
                         advanceToNextExerciseAfterTimer = true
-                        startRestTimer(exercise.plannedRestSeconds)
+                        startRestTimer(exercise.plannedRestSeconds, ChimeKind.EXERCISE)
                     }
                 }
             } else {
                 _uiState.update { it.copy(isProcessing = false) }
-                startRestTimer(exercise.plannedRestSeconds)
+                startRestTimer(exercise.plannedRestSeconds, ChimeKind.SET)
             }
         }
     }
@@ -260,7 +265,7 @@ class ActiveWorkoutViewModel(
                 showCurrentExercise() // will call finishWorkout()
             } else {
                 advanceToNextExerciseAfterTimer = true
-                startRestTimer(exercise.plannedRestSeconds)
+                startRestTimer(exercise.plannedRestSeconds, ChimeKind.EXERCISE)
             }
         }
     }
@@ -338,8 +343,9 @@ class ActiveWorkoutViewModel(
         }
     }
 
-    private fun startRestTimer(seconds: Int) {
+    private fun startRestTimer(seconds: Int, kind: ChimeKind) {
         countDownTimer?.cancel()
+        pendingChimeKind = kind
         _uiState.update { it.copy(timerState = TimerState.Running(seconds, seconds)) }
 
         countDownTimer = object : CountDownTimer(seconds * 1000L, 1000L) {
@@ -352,30 +358,62 @@ class ActiveWorkoutViewModel(
 
             override fun onFinish() {
                 _uiState.update { it.copy(timerState = TimerState.Finished) }
-                playNotificationSound()
+                playNotificationSound(pendingChimeKind)
                 vibrate()
             }
         }.start()
     }
 
-    private fun playNotificationSound() {
-        try {
-            val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
-            val handler = Handler(Looper.getMainLooper())
-            // Pleasant ascending three-tone chime
-            toneGen.startTone(ToneGenerator.TONE_DTMF_A, 150)
-            handler.postDelayed({
-                toneGen.startTone(ToneGenerator.TONE_DTMF_D, 150)
-            }, 200)
-            handler.postDelayed({
-                toneGen.startTone(ToneGenerator.TONE_DTMF_7, 300)
-                handler.postDelayed({ toneGen.release() }, 400)
-            }, 400)
-        } catch (_: Exception) {
-            // Fallback to system notification
+    private fun playNotificationSound(kind: ChimeKind) {
+        val sampleRate = 44100
+        val notes = when (kind) {
+            ChimeKind.SET -> listOf(523.25, 659.25, 783.99)               // C5-E5-G5
+            ChimeKind.EXERCISE -> listOf(523.25, 659.25, 783.99, 1046.50) // C5-E5-G5-C6
+        }
+        val noteMs = if (kind == ChimeKind.EXERCISE) 180 else 110
+        playArpeggio(notes, noteMs, sampleRate)
+    }
+
+    private fun playArpeggio(freqs: List<Double>, noteMs: Int, sampleRate: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                RingtoneManager.getRingtone(application, uri)?.play()
+                val samplesPerNote = sampleRate * noteMs / 1000
+                val totalSamples = samplesPerNote * freqs.size
+                val buffer = ShortArray(totalSamples)
+                val attack = samplesPerNote / 20
+                val releaseStart = samplesPerNote * 9 / 10
+                val releaseLen = samplesPerNote - releaseStart
+                freqs.forEachIndexed { idx, freq ->
+                    val offset = idx * samplesPerNote
+                    for (i in 0 until samplesPerNote) {
+                        val t = i.toDouble() / sampleRate
+                        val envelope = when {
+                            i < attack -> i.toDouble() / attack
+                            i > releaseStart -> (samplesPerNote - i).toDouble() / releaseLen
+                            else -> 1.0
+                        }
+                        val sample = (sin(2 * Math.PI * freq * t) * envelope * 0.6 * Short.MAX_VALUE).toInt().toShort()
+                        buffer[offset + i] = sample
+                    }
+                }
+                val track = AudioTrack(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build(),
+                    buffer.size * 2,
+                    AudioTrack.MODE_STATIC,
+                    AudioManager.AUDIO_SESSION_ID_GENERATE
+                )
+                track.write(buffer, 0, buffer.size)
+                track.play()
+                delay((noteMs.toLong() * freqs.size) + 50L)
+                track.release()
             } catch (_: Exception) { }
         }
     }

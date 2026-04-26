@@ -23,7 +23,6 @@ import com.fitti.ui.common.parseDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Date
@@ -72,7 +71,30 @@ class HomeViewModel(
             workoutRepo.observeCompletedSessions().collect { sessions ->
                 _uiState.update { it.copy(recentSessions = sessions, isLoading = false) }
                 updateMuscleGroupFreshness(_uiState.value.exercises)
-                refreshStatsAndAchievements(sessions)
+            }
+        }
+
+        viewModelScope.launch {
+            workoutRepo.observeSessionHistories().collect { histories ->
+                val sessions = histories.map { it.session }
+                val raw = StrengthEstimator.groupMax(histories)
+                val normalized = StrengthEstimator.normalize(raw)
+                val streak = AchievementService.computeStreak(sessions)
+                val earned = AchievementService.computeAchievements(
+                    sessions = sessions,
+                    histories = histories,
+                    startingWeightByExerciseId = emptyMap()
+                )
+                val seen = settingsRepo.getSeenAchievements()
+                val newOnes = earned.filter { it.code !in seen }
+
+                _uiState.update {
+                    it.copy(
+                        balanceByGroup = normalized,
+                        streakWeeks = streak,
+                        newAchievements = newOnes
+                    )
+                }
             }
         }
 
@@ -191,33 +213,6 @@ class HomeViewModel(
             }
 
             _uiState.update { it.copy(muscleGroupFreshness = freshness) }
-        }
-    }
-
-    private fun refreshStatsAndAchievements(sessions: List<WorkoutSessionEntity>) {
-        viewModelScope.launch {
-            val histories = workoutRepo.observeSessionHistories().first()
-
-            val raw = StrengthEstimator.groupMax(histories)
-            val normalized = StrengthEstimator.normalize(raw)
-
-            val streak = AchievementService.computeStreak(sessions)
-
-            val earned = AchievementService.computeAchievements(
-                sessions = sessions,
-                histories = histories,
-                startingWeightByExerciseId = emptyMap()
-            )
-            val seen = settingsRepo.getSeenAchievements()
-            val newOnes = earned.filter { it.code !in seen }
-
-            _uiState.update {
-                it.copy(
-                    balanceByGroup = normalized,
-                    streakWeeks = streak,
-                    newAchievements = newOnes
-                )
-            }
         }
     }
 

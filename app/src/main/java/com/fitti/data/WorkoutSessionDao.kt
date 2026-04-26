@@ -43,6 +43,21 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions WHERE status = 'STARTED' ORDER BY id DESC LIMIT 1")
     suspend fun getActiveSession(): WorkoutSessionEntity?
 
+    @Query("""
+        SELECT se.exerciseId
+        FROM session_exercises se
+        LEFT JOIN set_logs sl ON sl.sessionExerciseId = se.id
+        WHERE se.sessionId = (
+            SELECT id FROM workout_sessions
+            WHERE status = 'COMPLETED'
+            ORDER BY completedAt DESC
+            LIMIT 1
+        )
+        GROUP BY se.id, se.exerciseId, se.targetSets
+        HAVING COUNT(sl.id) < se.targetSets
+    """)
+    suspend fun getUnfinishedExerciseIdsFromLastSession(): List<Long>
+
     @Query("SELECT * FROM workout_sessions WHERE status = 'COMPLETED' ORDER BY completedAt DESC")
     fun observeCompletedSessions(): Flow<List<WorkoutSessionEntity>>
 
@@ -110,7 +125,11 @@ interface WorkoutSessionDao {
             )
         )
 
-        val snapshots = getAllActiveExercises().map { exercise ->
+        val unfinishedIds = getUnfinishedExerciseIdsFromLastSession().toSet()
+        val all = getAllActiveExercises()
+        val (priority, rest) = all.partition { it.id in unfinishedIds }
+        val ordered = priority + rest
+        val snapshots = ordered.map { exercise ->
             SessionExerciseEntity(
                 sessionId = sessionId,
                 exerciseId = exercise.id,
