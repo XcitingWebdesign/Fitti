@@ -1,9 +1,12 @@
 package com.fitti
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,9 +23,17 @@ import com.fitti.ui.screens.SettingsScreen
 import com.fitti.ui.theme.FittiTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val requestNotificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* result ignored */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         val database = FittiDatabase.create(applicationContext)
         val exerciseRepo = ExerciseRepository(database.exerciseDao())
@@ -30,6 +41,11 @@ class MainActivity : ComponentActivity() {
         val settingsRepo = SettingsRepository(applicationContext)
         val weightLogDao = database.weightLogDao()
         val aiAnalysisDao = database.aiAnalysisDao()
+        val coachingPlanDao = database.coachingPlanDao()
+        val nutritionLogDao = database.nutritionLogDao()
+        val bodyMeasurementDao = database.bodyMeasurementDao()
+
+        com.fitti.notifications.NotificationScheduler.applyAll(applicationContext, settingsRepo)
 
         setContent {
             FittiTheme {
@@ -43,6 +59,9 @@ class MainActivity : ComponentActivity() {
                             settingsRepo = settingsRepo,
                             weightLogDao = weightLogDao,
                             aiAnalysisDao = aiAnalysisDao,
+                            coachingPlanDao = coachingPlanDao,
+                            nutritionLogDao = nutritionLogDao,
+                            bodyMeasurementDao = bodyMeasurementDao,
                             onStartWorkout = { sessionId ->
                                 navController.navigate("workout/$sessionId") {
                                     launchSingleTop = true
@@ -53,6 +72,9 @@ class MainActivity : ComponentActivity() {
                             },
                             onOpenSettings = {
                                 navController.navigate("settings")
+                            },
+                            onOpenMeasurements = {
+                                navController.navigate("measurements")
                             }
                         )
                     }
@@ -68,6 +90,7 @@ class MainActivity : ComponentActivity() {
                             exerciseRepo = exerciseRepo,
                             settingsRepo = settingsRepo,
                             weightLogDao = weightLogDao,
+                            coachingPlanDao = coachingPlanDao,
                             application = application,
                             onWorkoutComplete = {
                                 navController.popBackStack("home", inclusive = false)
@@ -95,6 +118,16 @@ class MainActivity : ComponentActivity() {
                             weightLogDao = weightLogDao,
                             exerciseRepo = exerciseRepo,
                             workoutSessionDao = database.workoutSessionDao(),
+                            coachingPlanDao = coachingPlanDao,
+                            nutritionLogDao = nutritionLogDao,
+                            bodyMeasurementDao = bodyMeasurementDao,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable("measurements") {
+                        com.fitti.ui.screens.MeasurementsScreen(
+                            bodyMeasurementDao = bodyMeasurementDao,
                             onBack = { navController.popBackStack() }
                         )
                     }

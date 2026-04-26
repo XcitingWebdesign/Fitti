@@ -65,12 +65,13 @@ fun ActiveWorkoutScreen(
     exerciseRepo: ExerciseRepository,
     settingsRepo: SettingsRepository,
     weightLogDao: WeightLogDao,
+    coachingPlanDao: com.fitti.data.CoachingPlanDao,
     application: Application,
     onWorkoutComplete: () -> Unit
 ) {
     val vm: ActiveWorkoutViewModel = viewModel(
         key = "workout_$sessionId",
-        factory = ActiveWorkoutViewModelFactory(sessionId, workoutRepo, exerciseRepo, application)
+        factory = ActiveWorkoutViewModelFactory(sessionId, workoutRepo, exerciseRepo, coachingPlanDao, application)
     )
     val state by vm.uiState.collectAsState()
 
@@ -617,22 +618,35 @@ private fun WorkoutSummaryContent(
                                 ),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = change.exerciseName,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                    Text(
-                                        text = "${change.oldWeight.cleanWeight()} \u2192 ${change.newWeight.cleanWeight()} ${change.weightUnit}",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = change.exerciseName,
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                        val display = if (change.coachAction == "hold") {
+                                            "${change.oldWeight.cleanWeight()} ${change.weightUnit} (gehalten)"
+                                        } else {
+                                            "${change.oldWeight.cleanWeight()} \u2192 ${change.newWeight.cleanWeight()} ${change.weightUnit}"
+                                        }
+                                        Text(
+                                            text = display,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    if (change.coachAction == "hold" && change.coachReason.isNotBlank()) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            text = "Coach: ${change.coachReason}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }

@@ -12,6 +12,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.fitti.data.CoachingPlanDao
+import com.fitti.data.CoachingPlanWithTargets
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.SessionExerciseEntity
 import com.fitti.data.SetLogEntity
@@ -67,13 +69,16 @@ data class WeightChange(
     val exerciseName: String,
     val oldWeight: Double,
     val newWeight: Double,
-    val weightUnit: String
+    val weightUnit: String,
+    val coachAction: String = "progress",
+    val coachReason: String = ""
 )
 
 class ActiveWorkoutViewModel(
     private val sessionId: Long,
     private val workoutRepo: WorkoutSessionRepository,
     private val exerciseRepo: ExerciseRepository,
+    private val coachingPlanDao: CoachingPlanDao,
     private val application: Application
 ) : ViewModel() {
 
@@ -84,6 +89,7 @@ class ActiveWorkoutViewModel(
     // exerciseId -> nextWeight (stores the actual target, not just a boolean)
     private val progressionDecisions = mutableMapOf<Long, Double>()
     private val weightChanges = mutableListOf<WeightChange>()
+    private var activePlan: CoachingPlanWithTargets? = null
     private var countDownTimer: CountDownTimer? = null
     private var sessionStartTime: Date? = null
     private var advanceToNextExerciseAfterTimer = false
@@ -111,6 +117,7 @@ class ActiveWorkoutViewModel(
             // Fix 1a: use sessionId, not getActiveSession()
             val session = workoutRepo.getSessionById(sessionId) ?: return@launch
             sessionStartTime = parseDateTime(session.startedAt) ?: Date()
+            activePlan = coachingPlanDao.getLatest()
 
             val allExercises = workoutRepo.getSessionExercises(sessionId)
             val totalExercises = allExercises.size
@@ -188,7 +195,11 @@ class ActiveWorkoutViewModel(
             if (logs.size >= exercise.targetSets) {
                 workoutRepo.setExerciseCompletedAt(exercise.id, formatDateTime(Date()))
 
-                if (ProgressionService.isEligibleForProgression(logs, exercise.targetSets, exercise.targetReps)) {
+                val coachTarget = activePlan?.targetFor(exercise.exerciseCode)
+                val coachAction = coachTarget?.action
+
+                if (ProgressionService.isEligibleForProgression(logs, exercise.targetSets, exercise.targetReps) &&
+                    coachAction != "hold" && coachAction != "deload") {
                     val nextWeight = ProgressionService.calculateNextWeight(
                         exercise.targetWeight,
                         exercise.progressionStepKg,
@@ -203,6 +214,19 @@ class ActiveWorkoutViewModel(
                         )
                     }
                 } else {
+                    if (coachAction == "hold" && coachTarget != null) {
+                        val exerciseEntity = exerciseRepo.getById(exercise.exerciseId)
+                        weightChanges.add(
+                            WeightChange(
+                                exerciseName = exercise.exerciseDisplayName.ifEmpty { exercise.exerciseCode },
+                                oldWeight = exercise.targetWeight,
+                                newWeight = exercise.targetWeight,
+                                weightUnit = exerciseEntity?.weightUnit ?: "kg",
+                                coachAction = "hold",
+                                coachReason = coachTarget.reasonText
+                            )
+                        )
+                    }
                     // Not all sets qualified — skip progression, move to next exercise
                     exerciseQueue.poll()
                     _uiState.update {
@@ -436,10 +460,11 @@ class ActiveWorkoutViewModelFactory(
     private val sessionId: Long,
     private val workoutRepo: WorkoutSessionRepository,
     private val exerciseRepo: ExerciseRepository,
+    private val coachingPlanDao: CoachingPlanDao,
     private val application: Application
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ActiveWorkoutViewModel(sessionId, workoutRepo, exerciseRepo, application) as T
+        return ActiveWorkoutViewModel(sessionId, workoutRepo, exerciseRepo, coachingPlanDao, application) as T
     }
 }

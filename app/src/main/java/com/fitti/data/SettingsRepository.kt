@@ -59,6 +59,22 @@ class SettingsRepository(context: Context) {
         prefs.edit().putStringSet(KEY_SEEN_ACHIEVEMENTS, current).apply()
     }
 
+    var dailyReminderEnabled: Boolean
+        get() = prefs.getBoolean(KEY_DAILY_REMINDER, true)
+        set(value) = prefs.edit().putBoolean(KEY_DAILY_REMINDER, value).apply()
+
+    var dailyReminderHour: Int
+        get() = prefs.getInt(KEY_DAILY_HOUR, 20)
+        set(value) = prefs.edit().putInt(KEY_DAILY_HOUR, value).apply()
+
+    var monthlyMeasurementReminderEnabled: Boolean
+        get() = prefs.getBoolean(KEY_MONTHLY_MEAS, true)
+        set(value) = prefs.edit().putBoolean(KEY_MONTHLY_MEAS, value).apply()
+
+    var weeklyCoachingReminderEnabled: Boolean
+        get() = prefs.getBoolean(KEY_WEEKLY_COACH, true)
+        set(value) = prefs.edit().putBoolean(KEY_WEEKLY_COACH, value).apply()
+
     companion object {
         private const val KEY_REPS_MIN = "reps_min"
         private const val KEY_REPS_MAX = "reps_max"
@@ -71,6 +87,10 @@ class SettingsRepository(context: Context) {
         private const val KEY_CLAUDE_SONNET_MODEL = "claude_sonnet_model"
         private const val KEY_CLAUDE_OPUS_MODEL = "claude_opus_model"
         private const val KEY_SEEN_ACHIEVEMENTS = "seen_achievements"
+        private const val KEY_DAILY_REMINDER = "notif_daily_enabled"
+        private const val KEY_DAILY_HOUR = "notif_daily_hour"
+        private const val KEY_MONTHLY_MEAS = "notif_monthly_meas_enabled"
+        private const val KEY_WEEKLY_COACH = "notif_weekly_coach_enabled"
 
         const val DEFAULT_SONNET_MODEL = "claude-sonnet-4-6"
         const val DEFAULT_OPUS_MODEL = "claude-opus-4-7"

@@ -58,8 +58,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fitti.data.AiAnalysisDao
 import com.fitti.data.AiAnalysisEntity
+import com.fitti.data.BodyMeasurementDao
 import com.fitti.data.ClaudeApiService
+import com.fitti.data.CoachingPlanDao
+import com.fitti.data.CoachingPlanParser
+import com.fitti.data.CoachingPlanWithTargets
 import com.fitti.data.ExerciseRepository
+import com.fitti.data.NutritionLogDao
 import com.fitti.data.SettingsRepository
 import com.fitti.data.WeightLogDao
 import com.fitti.data.WorkoutSessionEntity
@@ -90,12 +95,19 @@ fun HomeScreen(
     settingsRepo: SettingsRepository,
     weightLogDao: WeightLogDao,
     aiAnalysisDao: AiAnalysisDao,
+    coachingPlanDao: CoachingPlanDao,
+    nutritionLogDao: NutritionLogDao,
+    bodyMeasurementDao: BodyMeasurementDao,
     onStartWorkout: (Long) -> Unit,
     onOpenHistory: (Long) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenMeasurements: () -> Unit
 ) {
     val vm: HomeViewModel = viewModel(
-        factory = HomeViewModelFactory(exerciseRepo, workoutRepo, settingsRepo, weightLogDao)
+        factory = HomeViewModelFactory(
+            exerciseRepo, workoutRepo, settingsRepo, weightLogDao,
+            coachingPlanDao, nutritionLogDao, bodyMeasurementDao
+        )
     )
     val state by vm.uiState.collectAsState()
 
@@ -105,9 +117,14 @@ fun HomeScreen(
         workoutRepo = workoutRepo,
         weightLogDao = weightLogDao,
         aiAnalysisDao = aiAnalysisDao,
+        coachingPlanDao = coachingPlanDao,
         onStartTraining = { vm.startOrContinueWorkout(onStartWorkout) },
         onOpenHistory = onOpenHistory,
         onOpenSettings = onOpenSettings,
+        onOpenMeasurements = onOpenMeasurements,
+        onToggleProtein = { vm.toggleProteinHitToday() },
+        onLogWeight = { vm.logWeightToday(it) },
+        onAfterCoaching = { vm.refresh() },
         onWeightEntered = { weight -> vm.onWeightEntered(weight, onStartWorkout) },
         onWeightSkipped = { vm.dismissWeightDialog(onStartWorkout) },
         onAchievementSeen = { code -> vm.markAchievementSeen(code) }
@@ -122,9 +139,14 @@ private fun HomeScreenContent(
     workoutRepo: WorkoutSessionRepository,
     weightLogDao: WeightLogDao,
     aiAnalysisDao: AiAnalysisDao,
+    coachingPlanDao: CoachingPlanDao,
     onStartTraining: () -> Unit,
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenMeasurements: () -> Unit,
+    onToggleProtein: () -> Unit,
+    onLogWeight: (Double) -> Unit,
+    onAfterCoaching: () -> Unit,
     onWeightEntered: (Double) -> Unit,
     onWeightSkipped: () -> Unit,
     onAchievementSeen: (String) -> Unit
@@ -140,7 +162,7 @@ private fun HomeScreenContent(
     LaunchedEffect(Unit) {
         val latest = aiAnalysisDao.getLatest()
         if (latest != null) {
-            weeklyAnalysis = latest.analysisText
+            weeklyAnalysis = CoachingPlanParser.stripPlanBlock(latest.analysisText)
             weeklyAnalysisTimestamp = latest.createdAt
         }
     }
@@ -221,6 +243,40 @@ private fun HomeScreenContent(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
+                    }
+                }
+            }
+
+            // Coach-Plan: Diese Woche
+            state.activePlan?.let { plan ->
+                item {
+                    CoachingPlanCard(
+                        plan = plan,
+                        latestWeightKg = state.weightLogs.firstOrNull()?.weightKg,
+                        proteinDaysHit = state.proteinDaysHitThisWeek,
+                        proteinHitToday = state.proteinHitToday,
+                        sessionsThisWeek = state.sessionsThisWeek,
+                        onToggleProtein = onToggleProtein,
+                        onLogWeight = onLogWeight
+                    )
+                }
+            }
+
+            // Tape-Mass-Banner
+            val due = state.measurementsDueDays
+            if (due == null || due >= 30) {
+                item {
+                    OutlinedButton(
+                        onClick = onOpenMeasurements,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        val label = if (due == null) {
+                            "Tape-Maße noch nicht erfasst"
+                        } else {
+                            "Tape-Maße seit $due Tagen fällig"
+                        }
+                        Text(label)
                     }
                 }
             }
@@ -343,13 +399,17 @@ private fun HomeScreenContent(
                                         weightLogs = allWeightLogs,
                                         previousCoaching = previousCoaching
                                     ).onSuccess { analysis ->
-                                        weeklyAnalysis = analysis
+                                        weeklyAnalysis = CoachingPlanParser.stripPlanBlock(analysis)
                                         showAnalysisDialog = true
                                         val ts = formatDateTime(Date())
                                         weeklyAnalysisTimestamp = ts
                                         aiAnalysisDao.insert(
                                             AiAnalysisEntity(analysisText = analysis, createdAt = ts)
                                         )
+                                        CoachingPlanParser.parse(analysis)?.let { (plan, targets) ->
+                                            coachingPlanDao.savePlan(plan, targets)
+                                        }
+                                        onAfterCoaching()
                                     }.onFailure { e ->
                                         analysisError = "Fehler: ${e.message}"
                                     }
@@ -664,5 +724,124 @@ private fun WeightDialog(
             }
         }
     )
+}
+
+@Composable
+private fun CoachingPlanCard(
+    plan: CoachingPlanWithTargets,
+    latestWeightKg: Double?,
+    proteinDaysHit: Int,
+    proteinHitToday: Boolean,
+    sessionsThisWeek: Int,
+    onToggleProtein: () -> Unit,
+    onLogWeight: (Double) -> Unit
+) {
+    var showWeightDialog by remember { mutableStateOf(false) }
+    val bottleneck = plan.plan
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Diese Woche",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(Modifier.height(4.dp))
+            val (label, currentDisplay, targetDisplay) = bottleneckDisplay(
+                bottleneck.bottleneckType,
+                latestWeightKg ?: bottleneck.bottleneckCurrent,
+                bottleneck.bottleneckTarget
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "$currentDisplay  \u2192  $targetDisplay",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "Sessions  ${sessionsThisWeek} / ${bottleneck.weeklySessions}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+                text = "Protein  ${proteinDaysHit} / 7 Tage  (Ziel ${bottleneck.weeklyProteinG} g/Tag)",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onToggleProtein,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    val mark = if (proteinHitToday) "\u2713" else "\u2715"
+                    Text("Protein heute $mark")
+                }
+                OutlinedButton(
+                    onClick = { showWeightDialog = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Gewicht")
+                }
+            }
+        }
+    }
+
+    if (showWeightDialog) {
+        WeightDialog(
+            lastWeight = latestWeightKg,
+            onConfirm = {
+                onLogWeight(it)
+                showWeightDialog = false
+            },
+            onSkip = { showWeightDialog = false }
+        )
+    }
+}
+
+private fun bottleneckDisplay(
+    type: String,
+    current: Double,
+    target: Double
+): Triple<String, String, String> {
+    return when (type) {
+        "bodyweight" -> Triple(
+            "Bottleneck: K\u00f6rpergewicht",
+            "${"%.1f".format(current)} kg",
+            "${"%.1f".format(target)} kg"
+        )
+        "protein" -> Triple(
+            "Bottleneck: Protein",
+            "${current.toInt()} g",
+            "${target.toInt()} g"
+        )
+        "sessions" -> Triple(
+            "Bottleneck: Trainingsfrequenz",
+            "${current.toInt()}",
+            "${target.toInt()}/Woche"
+        )
+        "progression" -> Triple(
+            "Bottleneck: Progression",
+            "${"%.1f".format(current)} kg",
+            "${"%.1f".format(target)} kg"
+        )
+        else -> Triple(
+            "Coach-Fokus",
+            "${"%.1f".format(current)}",
+            "${"%.1f".format(target)}"
+        )
+    }
 }
 
