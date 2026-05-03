@@ -34,7 +34,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fitti.data.BodyMeasurementDao
 import com.fitti.data.ClaudeApiService
+import com.fitti.data.NutritionLogDao
 import com.fitti.data.SessionExerciseWithSetLogs
 import com.fitti.data.SettingsRepository
 import com.fitti.data.WeightLogDao
@@ -55,6 +57,8 @@ fun HistoryDetailScreen(
     workoutRepo: WorkoutSessionRepository,
     settingsRepo: SettingsRepository,
     weightLogDao: WeightLogDao,
+    nutritionLogDao: NutritionLogDao,
+    bodyMeasurementDao: BodyMeasurementDao,
     onBack: () -> Unit
 ) {
     val vm: HistoryDetailViewModel = viewModel(
@@ -166,6 +170,8 @@ fun HistoryDetailScreen(
                             val weight = weightLogDao.getLatest()?.weightKg
                             val allHistories = workoutRepo.observeSessionHistories().first()
                             val allWeightLogs = weightLogDao.getAll()
+                            val measurements = bodyMeasurementDao.getAll()
+                            val nutrition = nutritionLogDao.getAll()
                             val service = ClaudeApiService(
                                 apiKey = settingsRepo.claudeApiKey,
                                 sonnetModel = settingsRepo.claudeSonnetModel,
@@ -177,7 +183,9 @@ fun HistoryDetailScreen(
                                 latestWeightKg = weight,
                                 heightCm = settingsRepo.heightCm,
                                 allHistories = allHistories,
-                                weightLogs = allWeightLogs
+                                weightLogs = allWeightLogs,
+                                bodyMeasurements = measurements,
+                                nutritionLogs = nutrition
                             )
                         }
                     )

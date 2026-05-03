@@ -40,8 +40,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fitti.data.BodyMeasurementDao
 import com.fitti.data.ClaudeApiService
 import com.fitti.data.ExerciseRepository
+import com.fitti.data.NutritionLogDao
 import com.fitti.data.SessionExerciseEntity
 import com.fitti.data.SettingsRepository
 import com.fitti.data.WeightLogDao
@@ -66,6 +68,8 @@ fun ActiveWorkoutScreen(
     settingsRepo: SettingsRepository,
     weightLogDao: WeightLogDao,
     coachingPlanDao: com.fitti.data.CoachingPlanDao,
+    nutritionLogDao: NutritionLogDao,
+    bodyMeasurementDao: BodyMeasurementDao,
     application: Application,
     onWorkoutComplete: () -> Unit
 ) {
@@ -90,6 +94,8 @@ fun ActiveWorkoutScreen(
                 workoutRepo = workoutRepo,
                 settingsRepo = settingsRepo,
                 weightLogDao = weightLogDao,
+                nutritionLogDao = nutritionLogDao,
+                bodyMeasurementDao = bodyMeasurementDao,
                 onFinish = onWorkoutComplete
             )
         }
@@ -97,6 +103,8 @@ fun ActiveWorkoutScreen(
             ProgressionDialogContent(
                 exercise = state.currentExercise!!,
                 nextWeight = state.nextWeight,
+                action = state.progressionAction,
+                coachReason = state.progressionCoachReason,
                 onYes = { vm.onProgressionDecision(true) },
                 onNo = { vm.onProgressionDecision(false) }
             )
@@ -111,6 +119,8 @@ fun ActiveWorkoutScreen(
                 nextExerciseName = state.nextExerciseName,
                 nextExerciseSeatPosition = state.nextExerciseSeatPosition,
                 nextExercisePadPosition = state.nextExercisePadPosition,
+                nextExerciseTargetWeight = state.nextExerciseTargetWeight,
+                nextExerciseRepRange = state.nextExerciseRepRange,
                 onSkipTimer = { vm.onTimerSkipped() },
                 onSkipNextExercise = { vm.onSkipNextExerciseDuringTimer() }
             )
@@ -336,6 +346,8 @@ private fun TimerContent(
     nextExerciseName: String = "",
     nextExerciseSeatPosition: String = "",
     nextExercisePadPosition: String = "",
+    nextExerciseTargetWeight: Double = 0.0,
+    nextExerciseRepRange: String = "",
     onSkipTimer: () -> Unit,
     onSkipNextExercise: () -> Unit = {}
 ) {
@@ -432,6 +444,22 @@ private fun TimerContent(
                     )
                 }
 
+                if (nextExerciseTargetWeight > 0.0 || nextExerciseRepRange.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    val targetParts = mutableListOf<String>()
+                    if (nextExerciseTargetWeight > 0.0) {
+                        targetParts.add("${nextExerciseTargetWeight.cleanWeight()} kg")
+                    }
+                    if (nextExerciseRepRange.isNotBlank()) {
+                        targetParts.add(nextExerciseRepRange)
+                    }
+                    Text(
+                        text = targetParts.joinToString(" \u2022 "),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = onSkipNextExercise) {
                     Text(
@@ -468,9 +496,21 @@ private fun TimerContent(
 private fun ProgressionDialogContent(
     exercise: SessionExerciseEntity,
     nextWeight: Double,
+    action: String = "progress",
+    coachReason: String = "",
     onYes: () -> Unit,
     onNo: () -> Unit
 ) {
+    val isDeload = action == "deload"
+    val delta = nextWeight - exercise.targetWeight
+    val deltaSign = if (delta >= 0) "+" else ""
+    val headline = if (isDeload) "Gewicht reduzieren?" else "Mehr Gewicht n\u00e4chstes Mal?"
+    val yesLabel = if (isDeload) {
+        "Ja (${deltaSign}${delta.cleanWeight()} \u2192 ${nextWeight.cleanWeight()})"
+    } else {
+        "Ja (${deltaSign}${delta.cleanWeight()} \u2192 ${nextWeight.cleanWeight()})"
+    }
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
@@ -498,11 +538,21 @@ private fun ProgressionDialogContent(
             Spacer(Modifier.height(40.dp))
 
             Text(
-                text = "Mehr Gewicht n\u00e4chstes Mal?",
+                text = headline,
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Bold
             )
+
+            if (coachReason.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "Coach: $coachReason",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             Spacer(Modifier.height(32.dp))
 
@@ -518,7 +568,7 @@ private fun ProgressionDialogContent(
                 )
             ) {
                 Text(
-                    "Ja (+${exercise.progressionStepKg.cleanWeight()} \u2192 ${nextWeight.cleanWeight()})",
+                    yesLabel,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary
@@ -552,6 +602,8 @@ private fun WorkoutSummaryContent(
     workoutRepo: WorkoutSessionRepository,
     settingsRepo: SettingsRepository,
     weightLogDao: WeightLogDao,
+    nutritionLogDao: NutritionLogDao,
+    bodyMeasurementDao: BodyMeasurementDao,
     onFinish: () -> Unit
 ) {
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
@@ -639,7 +691,7 @@ private fun WorkoutSummaryContent(
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
-                                    if (change.coachAction == "hold" && change.coachReason.isNotBlank()) {
+                                    if (change.coachReason.isNotBlank()) {
                                         Spacer(Modifier.height(4.dp))
                                         Text(
                                             text = "Coach: ${change.coachReason}",
@@ -665,6 +717,8 @@ private fun WorkoutSummaryContent(
                             val weight = weightLogDao.getLatest()?.weightKg
                             val allHistories = workoutRepo.observeSessionHistories().first()
                             val allWeightLogs = weightLogDao.getAll()
+                            val measurements = bodyMeasurementDao.getAll()
+                            val nutrition = nutritionLogDao.getAll()
                             val service = ClaudeApiService(
                                 apiKey = settingsRepo.claudeApiKey,
                                 sonnetModel = settingsRepo.claudeSonnetModel,
@@ -676,7 +730,9 @@ private fun WorkoutSummaryContent(
                                 latestWeightKg = weight,
                                 heightCm = settingsRepo.heightCm,
                                 allHistories = allHistories,
-                                weightLogs = allWeightLogs
+                                weightLogs = allWeightLogs,
+                                bodyMeasurements = measurements,
+                                nutritionLogs = nutrition
                             )
                         }
                     )

@@ -38,6 +38,15 @@ fun WeightChart(
     val maxW = weights.max()
     val range = if (maxW - minW < 0.1) 1.0 else maxW - minW
 
+    // Parse timestamps for date-proportional x-axis. Falls back to even spacing
+    // when any timestamp is unparseable or all entries share the same time.
+    val timestamps = sorted.map { parseDateTime(it.loggedAt)?.time }
+    val firstT = timestamps.firstOrNull()
+    val lastT = timestamps.lastOrNull()
+    val timeProportional = timestamps.all { it != null } &&
+        firstT != null && lastT != null && lastT > firstT
+    val timeSpan = if (timeProportional) (lastT!! - firstT!!).toFloat() else 1f
+
     val lineColor = MaterialTheme.colorScheme.primary
     val dotColor = MaterialTheme.colorScheme.primary
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -92,10 +101,20 @@ fun WeightChart(
                 paint
             )
 
+            fun xFor(i: Int): Float {
+                if (n == 1) return w / 2
+                val frac = if (timeProportional) {
+                    ((timestamps[i]!! - firstT!!).toFloat() / timeSpan)
+                } else {
+                    i.toFloat() / (n - 1)
+                }
+                return padding + (w - 2 * padding) * frac
+            }
+
             // Draw line
             val path = Path()
             for (i in sorted.indices) {
-                val x = if (n == 1) w / 2 else padding + (w - 2 * padding) * i / (n - 1)
+                val x = xFor(i)
                 val y = h - padding - ((weights[i] - minW) / range).toFloat() * (h - 2 * padding)
                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
             }
@@ -103,7 +122,7 @@ fun WeightChart(
 
             // Draw dots
             for (i in sorted.indices) {
-                val x = if (n == 1) w / 2 else padding + (w - 2 * padding) * i / (n - 1)
+                val x = xFor(i)
                 val y = h - padding - ((weights[i] - minW) / range).toFloat() * (h - 2 * padding)
                 drawCircle(dotColor, radius = 4.dp.toPx(), center = Offset(x, y))
             }

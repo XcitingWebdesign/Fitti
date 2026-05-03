@@ -19,6 +19,7 @@ import com.fitti.data.SessionExerciseEntity
 import com.fitti.data.SetLogEntity
 import com.fitti.data.WorkoutSessionRepository
 import com.fitti.domain.ProgressionService
+import com.fitti.notifications.RestTimerService
 import com.fitti.ui.common.formatDateTime
 import com.fitti.ui.common.parseDateTime
 import kotlinx.coroutines.Dispatchers
@@ -43,13 +44,17 @@ data class ActiveWorkoutUiState(
     val isExerciseTransition: Boolean = false,
     val showProgressionDialog: Boolean = false,
     val nextWeight: Double = 0.0,
+    val progressionAction: String = "progress",
+    val progressionCoachReason: String = "",
     val isWorkoutComplete: Boolean = false,
     val isProcessing: Boolean = false,
     val sessionSummary: SessionSummary? = null,
     val isLoading: Boolean = true,
     val nextExerciseName: String = "",
     val nextExerciseSeatPosition: String = "",
-    val nextExercisePadPosition: String = ""
+    val nextExercisePadPosition: String = "",
+    val nextExerciseTargetWeight: Double = 0.0,
+    val nextExerciseRepRange: String = ""
 )
 
 sealed class TimerState {
@@ -107,6 +112,33 @@ class ActiveWorkoutViewModel(
 
     private fun peekNextExercisePadPosition(): String =
         exerciseQueue.peek()?.exercisePadPosition ?: ""
+
+    private fun peekNextExerciseTargetWeight(): Double =
+        exerciseQueue.peek()?.targetWeight ?: 0.0
+
+    private fun peekNextExerciseRepRange(): String {
+        val next = exerciseQueue.peek() ?: return ""
+        return if (next.targetRepsMin == next.targetReps) {
+            "${next.targetReps} Wdh"
+        } else {
+            "${next.targetRepsMin}–${next.targetReps} Wdh"
+        }
+    }
+
+    /**
+     * Maps a coach-suggested weight to the nearest valid stack step (>= suggested),
+     * or rounds to 0.5 kg when no stack is configured.
+     */
+    private fun normalizeCoachWeight(suggested: Double, weightSteps: String): Double {
+        if (suggested <= 0.0) return suggested
+        val steps = ProgressionService.parseWeightSteps(weightSteps)
+        if (steps.isNotEmpty()) {
+            val match = steps.firstOrNull { it >= suggested - 0.01 }
+            if (match != null) return match
+            return steps.last()
+        }
+        return ProgressionService.roundToHalf(suggested)
+    }
 
     init {
         loadSession()
@@ -197,18 +229,49 @@ class ActiveWorkoutViewModel(
 
                 val coachTarget = activePlan?.targetFor(exercise.exerciseCode)
                 val coachAction = coachTarget?.action
+                val coachReason = coachTarget?.reasonText.orEmpty()
+                val eligibleByCode = ProgressionService.isEligibleForProgression(
+                    logs, exercise.targetSets, exercise.targetReps
+                )
 
-                if (ProgressionService.isEligibleForProgression(logs, exercise.targetSets, exercise.targetReps) &&
-                    coachAction != "hold" && coachAction != "deload") {
-                    val nextWeight = ProgressionService.calculateNextWeight(
+                // Determine whether and how to change weight. Coach plan overrides the
+                // code-based progression when it specifies a concrete target weight.
+                val coachWantsProgress = coachAction == "progress" &&
+                    coachTarget != null && coachTarget.targetWeightKg > 0.0
+                val coachWantsDeload = coachAction == "deload" && coachTarget != null
+
+                val proposedWeight: Double? = when {
+                    coachWantsProgress -> normalizeCoachWeight(coachTarget!!.targetWeightKg, exercise.weightSteps)
+                    coachWantsDeload -> {
+                        if (coachTarget!!.targetWeightKg > 0.0) {
+                            normalizeCoachWeight(coachTarget.targetWeightKg, exercise.weightSteps)
+                        } else {
+                            // No explicit weight: drop one stack step (or 5%).
+                            val steps = ProgressionService.parseWeightSteps(exercise.weightSteps)
+                            if (steps.isNotEmpty()) {
+                                steps.lastOrNull { it < exercise.targetWeight - 0.01 } ?: steps.first()
+                            } else {
+                                ProgressionService.roundToHalf(exercise.targetWeight * 0.95)
+                            }
+                        }
+                    }
+                    coachAction == "hold" -> null
+                    eligibleByCode -> ProgressionService.calculateNextWeight(
                         exercise.targetWeight,
                         exercise.progressionStepKg,
                         exercise.weightSteps
                     )
+                    else -> null
+                }
+
+                if (proposedWeight != null && proposedWeight != exercise.targetWeight) {
+                    val action = if (coachWantsDeload) "deload" else "progress"
                     _uiState.update {
                         it.copy(
                             showProgressionDialog = true,
-                            nextWeight = nextWeight,
+                            nextWeight = proposedWeight,
+                            progressionAction = action,
+                            progressionCoachReason = coachReason,
                             timerState = TimerState.Idle,
                             isProcessing = false
                         )
@@ -223,11 +286,11 @@ class ActiveWorkoutViewModel(
                                 newWeight = exercise.targetWeight,
                                 weightUnit = exerciseEntity?.weightUnit ?: "kg",
                                 coachAction = "hold",
-                                coachReason = coachTarget.reasonText
+                                coachReason = coachReason
                             )
                         )
                     }
-                    // Not all sets qualified — skip progression, move to next exercise
+                    // No weight change — move on to the next exercise.
                     exerciseQueue.poll()
                     _uiState.update {
                         it.copy(
@@ -236,7 +299,9 @@ class ActiveWorkoutViewModel(
                             isExerciseTransition = true,
                             nextExerciseName = peekNextExerciseName(),
                             nextExerciseSeatPosition = peekNextExerciseSeatPosition(),
-                            nextExercisePadPosition = peekNextExercisePadPosition()
+                            nextExercisePadPosition = peekNextExercisePadPosition(),
+                            nextExerciseTargetWeight = peekNextExerciseTargetWeight(),
+                            nextExerciseRepRange = peekNextExerciseRepRange()
                         )
                     }
                     if (exerciseQueue.isEmpty()) {
@@ -256,10 +321,11 @@ class ActiveWorkoutViewModel(
     fun onProgressionDecision(shouldProgress: Boolean) {
         viewModelScope.launch {
             val exercise = _uiState.value.currentExercise ?: return@launch
+            val action = _uiState.value.progressionAction
+            val coachReason = _uiState.value.progressionCoachReason
 
             if (shouldProgress) {
                 val nextWeight = _uiState.value.nextWeight
-                // Fix 1c: store the actual next weight directly
                 progressionDecisions[exercise.exerciseId] = nextWeight
 
                 val exerciseEntity = exerciseRepo.getById(exercise.exerciseId)
@@ -268,7 +334,9 @@ class ActiveWorkoutViewModel(
                         exerciseName = exercise.exerciseDisplayName.ifEmpty { exercise.exerciseCode },
                         oldWeight = exercise.targetWeight,
                         newWeight = nextWeight,
-                        weightUnit = exerciseEntity?.weightUnit ?: "kg"
+                        weightUnit = exerciseEntity?.weightUnit ?: "kg",
+                        coachAction = action,
+                        coachReason = coachReason
                     )
                 )
             }
@@ -278,10 +346,14 @@ class ActiveWorkoutViewModel(
                 it.copy(
                     completedExerciseCount = it.completedExerciseCount + 1,
                     showProgressionDialog = false,
+                    progressionCoachReason = "",
+                    progressionAction = "progress",
                     isExerciseTransition = true,
                     nextExerciseName = peekNextExerciseName(),
                     nextExerciseSeatPosition = peekNextExerciseSeatPosition(),
-                    nextExercisePadPosition = peekNextExercisePadPosition()
+                    nextExercisePadPosition = peekNextExercisePadPosition(),
+                    nextExerciseTargetWeight = peekNextExerciseTargetWeight(),
+                    nextExerciseRepRange = peekNextExerciseRepRange()
                 )
             }
 
@@ -302,6 +374,8 @@ class ActiveWorkoutViewModel(
                 nextExerciseName = peekNextExerciseName(),
                 nextExerciseSeatPosition = peekNextExerciseSeatPosition(),
                 nextExercisePadPosition = peekNextExercisePadPosition(),
+                nextExerciseTargetWeight = peekNextExerciseTargetWeight(),
+                nextExerciseRepRange = peekNextExerciseRepRange(),
                 skippedCount = it.skippedCount + 1
             )
         }
@@ -318,6 +392,7 @@ class ActiveWorkoutViewModel(
 
     fun onTimerSkipped() {
         countDownTimer?.cancel()
+        try { RestTimerService.stop(application) } catch (_: Exception) { }
         if (advanceToNextExerciseAfterTimer) {
             advanceToNextExerciseAfterTimer = false
             _uiState.update { it.copy(timerState = TimerState.Idle, isExerciseTransition = false) }
@@ -335,6 +410,7 @@ class ActiveWorkoutViewModel(
 
     private suspend fun finishWorkout() {
         countDownTimer?.cancel()
+        try { RestTimerService.stop(application) } catch (_: Exception) { }
         val now = formatDateTime(Date())
 
         // Fix 1b: check completeSession result
@@ -371,6 +447,18 @@ class ActiveWorkoutViewModel(
         countDownTimer?.cancel()
         pendingChimeKind = kind
         _uiState.update { it.copy(timerState = TimerState.Running(seconds, seconds)) }
+
+        // Start a foreground service so the chime fires reliably even with the
+        // screen off or the app backgrounded. The in-app countdown below stays
+        // in sync for the on-screen UI.
+        val serviceKind = if (kind == ChimeKind.EXERCISE) {
+            RestTimerService.KIND_EXERCISE
+        } else {
+            RestTimerService.KIND_SET
+        }
+        try {
+            RestTimerService.start(application, seconds, serviceKind)
+        } catch (_: Exception) { }
 
         countDownTimer = object : CountDownTimer(seconds * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
@@ -422,7 +510,7 @@ class ActiveWorkoutViewModel(
                 }
                 val track = AudioTrack(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build(),
                     AudioFormat.Builder()
@@ -453,6 +541,7 @@ class ActiveWorkoutViewModel(
     override fun onCleared() {
         super.onCleared()
         countDownTimer?.cancel()
+        try { RestTimerService.stop(application) } catch (_: Exception) { }
     }
 }
 
