@@ -118,6 +118,8 @@ fun HomeScreen(
         weightLogDao = weightLogDao,
         aiAnalysisDao = aiAnalysisDao,
         coachingPlanDao = coachingPlanDao,
+        nutritionLogDao = nutritionLogDao,
+        bodyMeasurementDao = bodyMeasurementDao,
         onStartTraining = { vm.startOrContinueWorkout(onStartWorkout) },
         onOpenHistory = onOpenHistory,
         onOpenSettings = onOpenSettings,
@@ -140,6 +142,8 @@ private fun HomeScreenContent(
     weightLogDao: WeightLogDao,
     aiAnalysisDao: AiAnalysisDao,
     coachingPlanDao: CoachingPlanDao,
+    nutritionLogDao: NutritionLogDao,
+    bodyMeasurementDao: BodyMeasurementDao,
     onStartTraining: () -> Unit,
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit,
@@ -385,6 +389,8 @@ private fun HomeScreenContent(
                                     }
                                     val weight = weightLogDao.getLatest()?.weightKg
                                     val allWeightLogs = weightLogDao.getAll()
+                                    val measurements = bodyMeasurementDao.getAll()
+                                    val nutrition = nutritionLogDao.getAll()
                                     val service = ClaudeApiService(
                                         apiKey = settingsRepo.claudeApiKey,
                                         sonnetModel = settingsRepo.claudeSonnetModel,
@@ -397,6 +403,8 @@ private fun HomeScreenContent(
                                         heightCm = settingsRepo.heightCm,
                                         allHistories = allHistories,
                                         weightLogs = allWeightLogs,
+                                        bodyMeasurements = measurements,
+                                        nutritionLogs = nutrition,
                                         previousCoaching = previousCoaching
                                     ).onSuccess { analysis ->
                                         weeklyAnalysis = CoachingPlanParser.stripPlanBlock(analysis)

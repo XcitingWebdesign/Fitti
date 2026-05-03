@@ -91,6 +91,8 @@ class MainActivity : ComponentActivity() {
                             settingsRepo = settingsRepo,
                             weightLogDao = weightLogDao,
                             coachingPlanDao = coachingPlanDao,
+                            nutritionLogDao = nutritionLogDao,
+                            bodyMeasurementDao = bodyMeasurementDao,
                             application = application,
                             onWorkoutComplete = {
                                 navController.popBackStack("home", inclusive = false)
@@ -108,6 +110,8 @@ class MainActivity : ComponentActivity() {
                             workoutRepo = workoutRepo,
                             settingsRepo = settingsRepo,
                             weightLogDao = weightLogDao,
+                            nutritionLogDao = nutritionLogDao,
+                            bodyMeasurementDao = bodyMeasurementDao,
                             onBack = { navController.popBackStack() }
                         )
                     }

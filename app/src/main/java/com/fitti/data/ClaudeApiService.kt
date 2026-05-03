@@ -19,7 +19,9 @@ class ClaudeApiService(
         latestWeightKg: Double?,
         heightCm: Int = 0,
         allHistories: List<WorkoutSessionHistory> = emptyList(),
-        weightLogs: List<WeightLogEntity> = emptyList()
+        weightLogs: List<WeightLogEntity> = emptyList(),
+        bodyMeasurements: List<BodyMeasurementEntity> = emptyList(),
+        nutritionLogs: List<NutritionLogEntity> = emptyList()
     ): Result<String> {
         val systemPrompt = "Du bist ein erfahrener Personal Trainer, der Zirkeltraining an Maschinen betreut. " +
                 "Dein Klient trainiert regelm\u00e4\u00dfig an Kraftmaschinen (Nautilus, etc.) im Zirkel.\n\n" +
@@ -41,6 +43,16 @@ class ClaudeApiService(
                 appendLine(formatHistoricalSummary(allHistories, weightLogs))
                 appendLine()
             }
+            val tape = formatBodyMeasurements(bodyMeasurements)
+            if (tape.isNotBlank()) {
+                appendLine(tape)
+                appendLine()
+            }
+            val nutrition = formatNutrition(nutritionLogs)
+            if (nutrition.isNotBlank()) {
+                appendLine(nutrition)
+                appendLine()
+            }
             appendLine(formatProfile(userGoal, latestWeightKg, heightCm))
         }
 
@@ -53,7 +65,9 @@ class ClaudeApiService(
         latestWeightKg: Double?,
         heightCm: Int = 0,
         allHistories: List<WorkoutSessionHistory> = emptyList(),
-        weightLogs: List<WeightLogEntity> = emptyList()
+        weightLogs: List<WeightLogEntity> = emptyList(),
+        bodyMeasurements: List<BodyMeasurementEntity> = emptyList(),
+        nutritionLogs: List<NutritionLogEntity> = emptyList()
     ): Result<String> {
         val systemPrompt = "Du bist ein erfahrener Personal Trainer, der Zirkeltraining an Maschinen betreut. " +
                 "Dein Klient trainiert regelm\u00e4\u00dfig an Kraftmaschinen (Nautilus, etc.) im Zirkel.\n\n" +
@@ -78,6 +92,16 @@ class ClaudeApiService(
             val historiesForSummary = if (allHistories.isNotEmpty()) allHistories else sessions
             if (historiesForSummary.size > sessions.size) {
                 appendLine(formatHistoricalSummary(historiesForSummary, weightLogs))
+                appendLine()
+            }
+            val tape = formatBodyMeasurements(bodyMeasurements)
+            if (tape.isNotBlank()) {
+                appendLine(tape)
+                appendLine()
+            }
+            val nutrition = formatNutrition(nutritionLogs)
+            if (nutrition.isNotBlank()) {
+                appendLine(nutrition)
                 appendLine()
             }
             appendLine(formatProfile(userGoal, latestWeightKg, heightCm))
@@ -205,6 +229,79 @@ class ClaudeApiService(
         }
     }
 
+    private fun formatBodyMeasurements(measurements: List<BodyMeasurementEntity>): String {
+        if (measurements.isEmpty()) return ""
+        val fmt = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.GERMANY)
+        val dateFmt = java.text.SimpleDateFormat("dd.MM", java.util.Locale.GERMANY)
+        val sorted = measurements.sortedBy { fmt.parse(it.measuredAt)?.time ?: 0L }
+
+        fun trajectoryFor(label: String, selector: (BodyMeasurementEntity) -> Double): String? {
+            val entries = sorted.mapNotNull { m ->
+                val v = selector(m)
+                if (v <= 0.0) return@mapNotNull null
+                val date = fmt.parse(m.measuredAt) ?: return@mapNotNull null
+                dateFmt.format(date) to v
+            }
+            if (entries.isEmpty()) return null
+            if (entries.size == 1) {
+                val (d, v) = entries.first()
+                return "$label: ${"%.1f".format(v)} cm ($d)"
+            }
+            val milestones = mutableListOf(entries.first())
+            var lastV = entries.first().second
+            for (i in 1 until entries.size) {
+                if (kotlin.math.abs(entries[i].second - lastV) >= 1.0) {
+                    milestones.add(entries[i])
+                    lastV = entries[i].second
+                }
+            }
+            if (milestones.last() != entries.last()) milestones.add(entries.last())
+            val trajectory = milestones.joinToString(" → ") {
+                "${"%.1f".format(it.second)} cm (${it.first})"
+            }
+            val delta = entries.last().second - entries.first().second
+            val trend = when {
+                delta > 0 -> "+${"%.1f".format(delta)} cm"
+                delta < 0 -> "${"%.1f".format(delta)} cm"
+                else -> "stabil"
+            }
+            return "$label: $trajectory [$trend]"
+        }
+
+        return buildString {
+            appendLine("=== Umfangsmessungen ===")
+            trajectoryFor("Brust", { it.chestCm })?.let { appendLine("- $it") }
+            trajectoryFor("Taille", { it.waistCm })?.let { appendLine("- $it") }
+            trajectoryFor("Bizeps", { it.bicepsCm })?.let { appendLine("- $it") }
+        }.trimEnd()
+    }
+
+    private fun formatNutrition(logs: List<NutritionLogEntity>): String {
+        if (logs.isEmpty()) return ""
+        val now = System.currentTimeMillis()
+        val sevenDaysAgo = now - 7L * 86400000
+        val thirtyDaysAgo = now - 30L * 86400000
+        val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.GERMANY)
+
+        fun summary(thresholdMs: Long, label: String): String? {
+            val window = logs.mapNotNull { log ->
+                val t = try { dateFmt.parse(log.date)?.time } catch (_: Exception) { null }
+                if (t != null && t >= thresholdMs) log else null
+            }
+            if (window.isEmpty()) return null
+            val hits = window.count { it.proteinHit }
+            val total = window.size
+            val pct = (hits.toDouble() / total * 100).toInt()
+            return "$label: $hits/$total Tage ($pct%)"
+        }
+
+        return buildString {
+            appendLine("=== Protein-Trefferquote ===")
+            summary(sevenDaysAgo, "Letzte 7 Tage")?.let { appendLine("- $it") }
+            summary(thirtyDaysAgo, "Letzte 30 Tage")?.let { appendLine("- $it") }
+        }.trimEnd()
+    }
+
     private fun formatSessionData(history: WorkoutSessionHistory): String = buildString {
         val session = history.session
         appendLine("Datum: ${session.startedAt}")
@@ -265,6 +362,8 @@ class ClaudeApiService(
         heightCm: Int = 0,
         allHistories: List<WorkoutSessionHistory> = emptyList(),
         weightLogs: List<WeightLogEntity> = emptyList(),
+        bodyMeasurements: List<BodyMeasurementEntity> = emptyList(),
+        nutritionLogs: List<NutritionLogEntity> = emptyList(),
         previousCoaching: String? = null
     ): Result<String> {
         val systemPrompt = "Du bist ein erfahrener Personal Trainer und Ziel-Coach f\u00fcr Zirkeltraining an Maschinen (Nautilus).\n" +
@@ -292,6 +391,7 @@ class ClaudeApiService(
                 "- Sei direkt, ehrlich und motivierend\n" +
                 "- Nenne \u00dcbungen immer beim Namen\n" +
                 "- Verwende die tats\u00e4chlichen Zahlen aus den Trainingsdaten\n" +
+                "- Beziehe Umfangsmessungen (Brust/Taille/Bizeps) und Protein-Trefferquote in deine Bewertung ein, sofern Daten vorhanden sind\n" +
                 "- Wenn kein Ziel gesetzt ist, empfiehl dem Klienten, eines zu setzen, und arbeite trotzdem mit den verf\u00fcgbaren Daten\n" +
                 "- Wenn kein vorheriges Coaching vorhanden ist, \u00fcberspringe den Abschnitt \"Fortschritt seit letztem Coaching\"\n" +
                 "- Verwende KEINE Markdown-Tabellen. Nutze stattdessen Aufz\u00e4hlungen (Spiegelstriche) f\u00fcr \u00dcbungsvergleiche und Gewichtsdaten.\n\n" +
@@ -334,6 +434,16 @@ class ClaudeApiService(
             val historiesForSummary = if (allHistories.isNotEmpty()) allHistories else sessions
             if (historiesForSummary.size > sessions.size) {
                 appendLine(formatHistoricalSummary(historiesForSummary, weightLogs))
+                appendLine()
+            }
+            val tape = formatBodyMeasurements(bodyMeasurements)
+            if (tape.isNotBlank()) {
+                appendLine(tape)
+                appendLine()
+            }
+            val nutrition = formatNutrition(nutritionLogs)
+            if (nutrition.isNotBlank()) {
+                appendLine(nutrition)
                 appendLine()
             }
             appendLine(formatProfile(userGoal, latestWeightKg, heightCm))

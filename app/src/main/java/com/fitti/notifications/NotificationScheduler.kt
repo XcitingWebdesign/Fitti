@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit
 object NotificationScheduler {
 
     const val CHANNEL_ID = "fitti_coach"
+    const val CHANNEL_ID_TIMER = "fitti_rest_timer"
     const val WORK_DAILY = "fitti_daily_reminder"
     const val WORK_MONTHLY_MEAS = "fitti_monthly_measurement"
     const val WORK_WEEKLY_COACH = "fitti_weekly_coaching"
@@ -39,6 +40,17 @@ object NotificationScheduler {
                     description = "Tägliche Erinnerungen vom Fitti Coach"
                 }
                 mgr.createNotificationChannel(channel)
+            }
+            if (mgr.getNotificationChannel(CHANNEL_ID_TIMER) == null) {
+                val timerChannel = NotificationChannel(
+                    CHANNEL_ID_TIMER,
+                    "Pause-Timer",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Zeigt den laufenden Pause-Timer und meldet das Ende mit Ton."
+                    enableVibration(true)
+                }
+                mgr.createNotificationChannel(timerChannel)
             }
         }
     }

@@ -21,9 +21,9 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * 5-axis radar/spider chart for muscle-group balance.
+ * 6-axis radar/spider chart for muscle-group balance.
  *
- * @param values map from muscle-group code (CHEST/BACK/LEGS/SHOULDERS/ABS) to
+ * @param values map from muscle-group code (CHEST/BACK/LEGS/SHOULDERS/ARMS/ABS) to
  *   a 0..1 normalized strength value. Missing groups render as 0.
  */
 @Composable
@@ -31,8 +31,9 @@ fun BalanceRadar(
     values: Map<String, Float>,
     modifier: Modifier = Modifier
 ) {
-    val order = listOf("CHEST", "BACK", "LEGS", "SHOULDERS", "ABS")
+    val order = listOf("CHEST", "BACK", "LEGS", "SHOULDERS", "ARMS", "ABS")
     val labels = order.map { muscleGroupLabels[it] ?: it }
+    val axisCount = order.size
 
     if (values.isEmpty()) {
         Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -65,8 +66,8 @@ fun BalanceRadar(
             for (step in 1..4) {
                 val r = radius * step / 4f
                 val ringPath = Path()
-                for (i in 0 until 5) {
-                    val angle = angleFor(i)
+                for (i in 0 until axisCount) {
+                    val angle = angleFor(i, axisCount)
                     val x = cx + r * cos(angle).toFloat()
                     val y = cy + r * sin(angle).toFloat()
                     if (i == 0) ringPath.moveTo(x, y) else ringPath.lineTo(x, y)
@@ -80,8 +81,8 @@ fun BalanceRadar(
             }
 
             // Axis lines
-            for (i in 0 until 5) {
-                val angle = angleFor(i)
+            for (i in 0 until axisCount) {
+                val angle = angleFor(i, axisCount)
                 val x = cx + radius * cos(angle).toFloat()
                 val y = cy + radius * sin(angle).toFloat()
                 drawLine(
@@ -94,9 +95,9 @@ fun BalanceRadar(
 
             // Data polygon
             val polygon = Path()
-            for (i in 0 until 5) {
+            for (i in 0 until axisCount) {
                 val v = (values[order[i]] ?: 0f).coerceIn(0f, 1f)
-                val angle = angleFor(i)
+                val angle = angleFor(i, axisCount)
                 val x = cx + radius * v * cos(angle).toFloat()
                 val y = cy + radius * v * sin(angle).toFloat()
                 if (i == 0) polygon.moveTo(x, y) else polygon.lineTo(x, y)
@@ -110,9 +111,9 @@ fun BalanceRadar(
             )
 
             // Data dots
-            for (i in 0 until 5) {
+            for (i in 0 until axisCount) {
                 val v = (values[order[i]] ?: 0f).coerceIn(0f, 1f)
-                val angle = angleFor(i)
+                val angle = angleFor(i, axisCount)
                 val x = cx + radius * v * cos(angle).toFloat()
                 val y = cy + radius * v * sin(angle).toFloat()
                 drawCircle(strokeColor, radius = 3.dp.toPx(), center = Offset(x, y))
@@ -132,8 +133,8 @@ fun BalanceRadar(
                 textAlign = android.graphics.Paint.Align.CENTER
             }
             val labelOffset = radius + 20.dp.toPx()
-            for (i in 0 until 5) {
-                val angle = angleFor(i)
+            for (i in 0 until axisCount) {
+                val angle = angleFor(i, axisCount)
                 val x = cx + labelOffset * cos(angle).toFloat()
                 val y = cy + labelOffset * sin(angle).toFloat() + paint.textSize / 3f
                 drawContext.canvas.nativeCanvas.drawText(labels[i], x, y, paint)
@@ -149,8 +150,7 @@ fun BalanceRadar(
     }
 }
 
-/** Top (index 0) points up; remaining 4 vertices step clockwise at 72 degrees. */
-private fun angleFor(index: Int): Double {
-    // -PI/2 puts vertex 0 at top; step by 2*PI/5.
-    return -Math.PI / 2.0 + index * 2.0 * Math.PI / 5.0
+/** Top (index 0) points up; remaining vertices step clockwise evenly across the circle. */
+private fun angleFor(index: Int, count: Int): Double {
+    return -Math.PI / 2.0 + index * 2.0 * Math.PI / count
 }
