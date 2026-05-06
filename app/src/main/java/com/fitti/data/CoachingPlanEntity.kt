@@ -43,7 +43,9 @@ data class CoachingPlanExerciseTargetEntity(
     val exerciseCode: String,
     val action: String,
     val targetWeightKg: Double,
-    val reasonText: String
+    val reasonText: String,
+    /** null = noch nicht entschieden, "accepted" = uebernommen, "rejected" = verworfen */
+    val decision: String? = null
 )
 
 data class CoachingPlanWithTargets(
@@ -67,6 +69,9 @@ interface CoachingPlanDao {
 
     @Query("SELECT * FROM coaching_plan_exercise_targets WHERE planId = :planId")
     suspend fun getTargetsForPlan(planId: Long): List<CoachingPlanExerciseTargetEntity>
+
+    @Query("UPDATE coaching_plan_exercise_targets SET decision = :decision WHERE id = :targetId")
+    suspend fun updateTargetDecision(targetId: Long, decision: String)
 
     @Transaction
     suspend fun savePlan(plan: CoachingPlanEntity, targets: List<CoachingPlanExerciseTargetEntity>): Long {

@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.fitti.data.CoachingPlanDao
+import com.fitti.data.CoachingPlanExerciseTargetEntity
 import com.fitti.data.CoachingPlanWithTargets
 import com.fitti.data.ExerciseRepository
 import com.fitti.data.SessionExerciseEntity
@@ -46,6 +47,10 @@ data class ActiveWorkoutUiState(
     val nextWeight: Double = 0.0,
     val progressionAction: String = "progress",
     val progressionCoachReason: String = "",
+    val showCoachIntakeDialog: Boolean = false,
+    val coachIntakeWeight: Double = 0.0,
+    val coachIntakeAction: String = "progress",
+    val coachIntakeReason: String = "",
     val isWorkoutComplete: Boolean = false,
     val isProcessing: Boolean = false,
     val sessionSummary: SessionSummary? = null,
@@ -183,9 +188,42 @@ class ActiveWorkoutViewModel(
             return
         }
 
+        val logs = workoutRepo.getSetLogs(current.id)
+
+        // Vor dem ersten Satz: Wenn ein offener Coach-Vorschlag existiert, der das
+        // Ausgangsgewicht aendern wuerde, dem Nutzer die Wahl ueberlassen statt
+        // ihn stillschweigend anzuwenden.
+        if (logs.isEmpty()) {
+            val coachTarget = activePlan?.targetFor(current.exerciseCode)
+            if (coachTarget != null && coachTarget.decision == null) {
+                val intake = buildCoachIntake(current, coachTarget)
+                if (intake != null) {
+                    _uiState.update {
+                        it.copy(
+                            currentExercise = current,
+                            completedSets = logs,
+                            currentSetNumber = 1,
+                            timerState = TimerState.Idle,
+                            showProgressionDialog = false,
+                            showCoachIntakeDialog = true,
+                            coachIntakeWeight = intake.first,
+                            coachIntakeAction = intake.second,
+                            coachIntakeReason = coachTarget.reasonText,
+                            isProcessing = false
+                        )
+                    }
+                    return
+                } else {
+                    // hold-Vorschlag oder identisches Gewicht: kein Dialog noetig,
+                    // aber als entschieden markieren, damit er nicht spaeter wieder auftaucht.
+                    coachingPlanDao.updateTargetDecision(coachTarget.id, "auto")
+                    refreshActivePlan()
+                }
+            }
+        }
+
         workoutRepo.setExerciseStartedAt(current.id, formatDateTime(Date()))
 
-        val logs = workoutRepo.getSetLogs(current.id)
         _uiState.update {
             it.copy(
                 currentExercise = current,
@@ -193,9 +231,45 @@ class ActiveWorkoutViewModel(
                 currentSetNumber = logs.size + 1,
                 timerState = TimerState.Idle,
                 showProgressionDialog = false,
+                showCoachIntakeDialog = false,
                 isProcessing = false
             )
         }
+    }
+
+    /**
+     * Liefert (vorgeschlagenes Gewicht, action) wenn der Coach-Vorschlag einen
+     * Gewichts-Wechsel bedeutet, sonst null (z.B. action="hold" oder identisches Gewicht).
+     */
+    private fun buildCoachIntake(
+        exercise: SessionExerciseEntity,
+        coachTarget: CoachingPlanExerciseTargetEntity
+    ): Pair<Double, String>? {
+        val action = coachTarget.action
+        return when {
+            action == "progress" && coachTarget.targetWeightKg > 0.0 -> {
+                val w = normalizeCoachWeight(coachTarget.targetWeightKg, exercise.weightSteps)
+                if (w > exercise.targetWeight + 0.01) w to "progress" else null
+            }
+            action == "deload" -> {
+                val w = if (coachTarget.targetWeightKg > 0.0) {
+                    normalizeCoachWeight(coachTarget.targetWeightKg, exercise.weightSteps)
+                } else {
+                    val steps = ProgressionService.parseWeightSteps(exercise.weightSteps)
+                    if (steps.isNotEmpty()) {
+                        steps.lastOrNull { it < exercise.targetWeight - 0.01 } ?: steps.first()
+                    } else {
+                        ProgressionService.roundToHalf(exercise.targetWeight * 0.95)
+                    }
+                }
+                if (w < exercise.targetWeight - 0.01) w to "deload" else null
+            }
+            else -> null
+        }
+    }
+
+    private suspend fun refreshActivePlan() {
+        activePlan = coachingPlanDao.getLatest()
     }
 
     fun onSetLogged(reps: Int) {
@@ -227,69 +301,33 @@ class ActiveWorkoutViewModel(
             if (logs.size >= exercise.targetSets) {
                 workoutRepo.setExerciseCompletedAt(exercise.id, formatDateTime(Date()))
 
-                val coachTarget = activePlan?.targetFor(exercise.exerciseCode)
-                val coachAction = coachTarget?.action
-                val coachReason = coachTarget?.reasonText.orEmpty()
+                // Die Coach-Empfehlung wurde bereits VOR dem ersten Satz im
+                // CoachIntake-Dialog akzeptiert oder verworfen. Nach dem letzten Satz
+                // entscheidet ausschliesslich die Double-Progression-Regel.
                 val eligibleByCode = ProgressionService.isEligibleForProgression(
                     logs, exercise.targetSets, exercise.targetReps
                 )
 
-                // Determine whether and how to change weight. Coach plan overrides the
-                // code-based progression when it specifies a concrete target weight.
-                val coachWantsProgress = coachAction == "progress" &&
-                    coachTarget != null && coachTarget.targetWeightKg > 0.0
-                val coachWantsDeload = coachAction == "deload" && coachTarget != null
-
-                val proposedWeight: Double? = when {
-                    coachWantsProgress -> normalizeCoachWeight(coachTarget!!.targetWeightKg, exercise.weightSteps)
-                    coachWantsDeload -> {
-                        if (coachTarget!!.targetWeightKg > 0.0) {
-                            normalizeCoachWeight(coachTarget.targetWeightKg, exercise.weightSteps)
-                        } else {
-                            // No explicit weight: drop one stack step (or 5%).
-                            val steps = ProgressionService.parseWeightSteps(exercise.weightSteps)
-                            if (steps.isNotEmpty()) {
-                                steps.lastOrNull { it < exercise.targetWeight - 0.01 } ?: steps.first()
-                            } else {
-                                ProgressionService.roundToHalf(exercise.targetWeight * 0.95)
-                            }
-                        }
-                    }
-                    coachAction == "hold" -> null
-                    eligibleByCode -> ProgressionService.calculateNextWeight(
+                val proposedWeight: Double? = if (eligibleByCode) {
+                    ProgressionService.calculateNextWeight(
                         exercise.targetWeight,
                         exercise.progressionStepKg,
                         exercise.weightSteps
                     )
-                    else -> null
-                }
+                } else null
 
                 if (proposedWeight != null && proposedWeight != exercise.targetWeight) {
-                    val action = if (coachWantsDeload) "deload" else "progress"
                     _uiState.update {
                         it.copy(
                             showProgressionDialog = true,
                             nextWeight = proposedWeight,
-                            progressionAction = action,
-                            progressionCoachReason = coachReason,
+                            progressionAction = "progress",
+                            progressionCoachReason = "",
                             timerState = TimerState.Idle,
                             isProcessing = false
                         )
                     }
                 } else {
-                    if (coachAction == "hold" && coachTarget != null) {
-                        val exerciseEntity = exerciseRepo.getById(exercise.exerciseId)
-                        weightChanges.add(
-                            WeightChange(
-                                exerciseName = exercise.exerciseDisplayName.ifEmpty { exercise.exerciseCode },
-                                oldWeight = exercise.targetWeight,
-                                newWeight = exercise.targetWeight,
-                                weightUnit = exerciseEntity?.weightUnit ?: "kg",
-                                coachAction = "hold",
-                                coachReason = coachReason
-                            )
-                        )
-                    }
                     // No weight change — move on to the next exercise.
                     exerciseQueue.poll()
                     _uiState.update {
@@ -363,6 +401,62 @@ class ActiveWorkoutViewModel(
                 advanceToNextExerciseAfterTimer = true
                 startRestTimer(exercise.plannedRestSeconds, ChimeKind.EXERCISE)
             }
+        }
+    }
+
+    fun onCoachIntakeDecision(accept: Boolean) {
+        viewModelScope.launch {
+            val exercise = _uiState.value.currentExercise ?: return@launch
+            val coachTarget = activePlan?.targetFor(exercise.exerciseCode)
+            val newWeight = _uiState.value.coachIntakeWeight
+
+            if (accept && newWeight > 0.0) {
+                workoutRepo.updateSessionExerciseTargetWeight(exercise.id, newWeight)
+                exerciseRepo.updateWeight(
+                    exercise.exerciseId,
+                    newWeight,
+                    formatDateTime(Date()).substringBefore(" ")
+                )
+                val exerciseEntity = exerciseRepo.getById(exercise.exerciseId)
+                weightChanges.add(
+                    WeightChange(
+                        exerciseName = exercise.exerciseDisplayName.ifEmpty { exercise.exerciseCode },
+                        oldWeight = exercise.targetWeight,
+                        newWeight = newWeight,
+                        weightUnit = exerciseEntity?.weightUnit ?: "kg",
+                        coachAction = _uiState.value.coachIntakeAction,
+                        coachReason = _uiState.value.coachIntakeReason
+                    )
+                )
+                // currentExercise ist immer das Queue-Head; aktualisierten Eintrag dort zurueckschreiben.
+                val refreshed = workoutRepo.getSessionExerciseById(exercise.id)
+                if (refreshed != null) {
+                    if (exerciseQueue.peek()?.id == refreshed.id) {
+                        exerciseQueue.poll()
+                        exerciseQueue.addFirst(refreshed)
+                    }
+                    _uiState.update { it.copy(currentExercise = refreshed) }
+                }
+            }
+
+            if (coachTarget != null) {
+                coachingPlanDao.updateTargetDecision(
+                    coachTarget.id,
+                    if (accept) "accepted" else "rejected"
+                )
+                refreshActivePlan()
+            }
+
+            _uiState.update {
+                it.copy(
+                    showCoachIntakeDialog = false,
+                    coachIntakeWeight = 0.0,
+                    coachIntakeAction = "progress",
+                    coachIntakeReason = ""
+                )
+            }
+            // Jetzt den eigentlichen Uebungsstart durchziehen.
+            showCurrentExercise()
         }
     }
 

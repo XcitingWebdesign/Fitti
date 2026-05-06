@@ -54,4 +54,10 @@ class WorkoutSessionRepository(
 
     suspend fun setExerciseCompletedAt(id: Long, completedAt: String) =
         dao.setExerciseCompletedAt(id, completedAt)
+
+    suspend fun updateSessionExerciseTargetWeight(id: Long, targetWeight: Double) =
+        dao.updateSessionExerciseTargetWeight(id, targetWeight)
+
+    suspend fun getSessionExerciseById(id: Long): SessionExerciseEntity? =
+        dao.getSessionExerciseById(id)
 }
