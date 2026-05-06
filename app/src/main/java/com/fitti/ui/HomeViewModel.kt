@@ -15,6 +15,7 @@ import com.fitti.data.WeightLogDao
 import com.fitti.data.WeightLogEntity
 import com.fitti.data.WorkoutSessionEntity
 import com.fitti.data.WorkoutSessionRepository
+import com.fitti.ui.common.parseDateTime
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -87,7 +88,13 @@ class HomeViewModel(
 
         viewModelScope.launch {
             workoutRepo.observeCompletedSessions().collect { sessions ->
-                _uiState.update { it.copy(recentSessions = sessions, isLoading = false) }
+                // Datum ist als "dd.MM.yyyy HH:mm" gespeichert; SQL-Sort vergleicht
+                // lexikographisch und wuerde Mai-Termine ("06.05.") nach April-Terminen
+                // ("30.04.") einordnen. Hier nochmal numerisch nach Zeit sortieren.
+                val sorted = sessions.sortedByDescending {
+                    parseDateTime(it.completedAt ?: it.startedAt)?.time ?: 0L
+                }
+                _uiState.update { it.copy(recentSessions = sorted, isLoading = false) }
                 updateMuscleGroupFreshness(_uiState.value.exercises)
             }
         }

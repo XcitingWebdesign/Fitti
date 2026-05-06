@@ -99,6 +99,16 @@ fun ActiveWorkoutScreen(
                 onFinish = onWorkoutComplete
             )
         }
+        state.showCoachIntakeDialog -> {
+            CoachIntakeDialogContent(
+                exercise = state.currentExercise!!,
+                proposedWeight = state.coachIntakeWeight,
+                action = state.coachIntakeAction,
+                coachReason = state.coachIntakeReason,
+                onAccept = { vm.onCoachIntakeDecision(true) },
+                onReject = { vm.onCoachIntakeDecision(false) }
+            )
+        }
         state.showProgressionDialog -> {
             ProgressionDialogContent(
                 exercise = state.currentExercise!!,
@@ -485,6 +495,102 @@ private fun TimerContent(
                         else "Weiter zum n\u00e4chsten Satz"
                     } else "Timer \u00fcberspringen",
                     style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoachIntakeDialogContent(
+    exercise: SessionExerciseEntity,
+    proposedWeight: Double,
+    action: String,
+    coachReason: String,
+    onAccept: () -> Unit,
+    onReject: () -> Unit
+) {
+    val isDeload = action == "deload"
+    val delta = proposedWeight - exercise.targetWeight
+    val deltaSign = if (delta >= 0) "+" else ""
+    val headline = if (isDeload) "KI schl\u00e4gt vor: Gewicht reduzieren"
+                    else "KI schl\u00e4gt vor: Gewicht erh\u00f6hen"
+
+    Scaffold { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = exercise.exerciseDisplayName.ifEmpty { exercise.exerciseCode },
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "Aktuell: ${exercise.targetWeight.cleanWeight()} kg",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            Text(
+                text = headline,
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold
+            )
+
+            if (coachReason.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "Coach: $coachReason",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            Button(
+                onClick = onAccept,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(72.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text(
+                    "\u00dcbernehmen (${deltaSign}${delta.cleanWeight()} \u2192 ${proposedWeight.cleanWeight()})",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = onReject,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    "Bei ${exercise.targetWeight.cleanWeight()} kg bleiben",
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

@@ -341,6 +341,12 @@ class ClaudeApiService(
                     appendLine("  Satz ${log.setNumber}: ${log.actualWeightKg} kg x ${log.actualReps} Wdh $status")
                     totalVolume += log.actualWeightKg * log.actualReps
                 }
+                // Wenn Soll und tatsaechlich verwendetes Gewicht abweichen, das Ist explizit
+                // hervorheben, damit der Coach sich nicht am Soll-Snapshot orientiert.
+                val actualMax = logs.maxOf { it.actualWeightKg }
+                if (kotlin.math.abs(actualMax - ex.targetWeight) > 0.01) {
+                    appendLine("  Tats\u00e4chlich verwendetes Gewicht: $actualMax kg (Soll-Snapshot war ${ex.targetWeight} kg)")
+                }
             }
 
             // Track muscle group sets
@@ -391,6 +397,7 @@ class ClaudeApiService(
                 "- Sei direkt, ehrlich und motivierend\n" +
                 "- Nenne \u00dcbungen immer beim Namen\n" +
                 "- Verwende die tats\u00e4chlichen Zahlen aus den Trainingsdaten\n" +
+                "- Wenn 'Tats\u00e4chlich verwendetes Gewicht' angegeben ist, beziehe dich in deinen Empfehlungen und Begr\u00fcndungen ausschlie\u00dflich auf diesen Wert, NICHT auf den Soll-Snapshot\n" +
                 "- Beziehe Umfangsmessungen (Brust/Taille/Bizeps) und Protein-Trefferquote in deine Bewertung ein, sofern Daten vorhanden sind\n" +
                 "- Wenn kein Ziel gesetzt ist, empfiehl dem Klienten, eines zu setzen, und arbeite trotzdem mit den verf\u00fcgbaren Daten\n" +
                 "- Wenn kein vorheriges Coaching vorhanden ist, \u00fcberspringe den Abschnitt \"Fortschritt seit letztem Coaching\"\n" +

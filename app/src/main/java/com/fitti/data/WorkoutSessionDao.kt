@@ -100,6 +100,12 @@ interface WorkoutSessionDao {
     @Query("UPDATE session_exercises SET exerciseStartedAt = :startedAt WHERE id = :id AND exerciseStartedAt IS NULL")
     suspend fun setExerciseStartedAt(id: Long, startedAt: String)
 
+    @Query("UPDATE session_exercises SET targetWeight = :targetWeight WHERE id = :id")
+    suspend fun updateSessionExerciseTargetWeight(id: Long, targetWeight: Double)
+
+    @Query("SELECT * FROM session_exercises WHERE id = :id")
+    suspend fun getSessionExerciseById(id: Long): SessionExerciseEntity?
+
     @Query("UPDATE session_exercises SET exerciseCompletedAt = :completedAt WHERE id = :id")
     suspend fun setExerciseCompletedAt(id: Long, completedAt: String)
 
