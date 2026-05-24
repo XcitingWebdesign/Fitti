@@ -98,4 +98,38 @@ class CoachingPlanParserTest {
         assertEquals(1, targets.size)
         assertEquals("B2", targets[0].exerciseCode)
     }
+
+    @Test
+    fun parse_dropsTargetsWithCodesNotInValidSet() {
+        val responseWithExtraCode = """
+            Some prose.
+            <plan>
+            {
+              "exercise_targets":[
+                {"code":"F3","action":"progress","weight_kg":57.5,"reason":"sauber"},
+                {"code":"XX9","action":"progress","weight_kg":100.0,"reason":"halluziniert"},
+                {"code":"D3","action":"hold","weight_kg":27.5,"reason":"inkonsistent"}
+              ]
+            }
+            </plan>
+        """.trimIndent()
+        val result = CoachingPlanParser.parse(
+            responseWithExtraCode,
+            validExerciseCodes = setOf("F3", "D3", "B2")
+        )
+        assertNotNull(result)
+        val (_, targets) = result!!
+        assertEquals(2, targets.size)
+        assertTrue(targets.none { it.exerciseCode == "XX9" })
+        assertTrue(targets.any { it.exerciseCode == "F3" })
+        assertTrue(targets.any { it.exerciseCode == "D3" })
+    }
+
+    @Test
+    fun parse_keepsAllTargetsWhenValidCodesNull() {
+        val result = CoachingPlanParser.parse(sampleResponse, validExerciseCodes = null)
+        assertNotNull(result)
+        val (_, targets) = result!!
+        assertEquals(2, targets.size)
+    }
 }

@@ -24,8 +24,15 @@ object CoachingPlanParser {
      * Extract the JSON inside `<plan>...</plan>`, parse it, and convert into
      * a (plan, targets) pair ready for persistence. Returns null if extraction
      * or parsing fails — caller should fall back to prose-only display.
+     *
+     * Wenn [validExerciseCodes] gesetzt ist, werden Targets mit unbekannten
+     * Codes verworfen (verhindert verwaiste Einträge bei Claude-Halluzinationen
+     * oder veralteten Code-Listen).
      */
-    fun parse(response: String): Pair<CoachingPlanEntity, List<CoachingPlanExerciseTargetEntity>>? {
+    fun parse(
+        response: String,
+        validExerciseCodes: Set<String>? = null
+    ): Pair<CoachingPlanEntity, List<CoachingPlanExerciseTargetEntity>>? {
         val match = planRegex.find(response) ?: return null
         val jsonText = match.groupValues[1].trim()
         return try {
@@ -64,6 +71,7 @@ object CoachingPlanParser {
                     val obj = targetsArr.getJSONObject(i)
                     val code = obj.optString("code", "").trim()
                     if (code.isEmpty()) continue
+                    if (validExerciseCodes != null && code !in validExerciseCodes) continue
                     targets += CoachingPlanExerciseTargetEntity(
                         planId = 0L,
                         exerciseCode = code,
