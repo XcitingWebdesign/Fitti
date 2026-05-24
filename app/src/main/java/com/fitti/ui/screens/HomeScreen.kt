@@ -316,6 +316,11 @@ private fun HomeScreenContent(
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(
+                        text = "Trainingsvolumen letzte 14 Tage",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(Modifier.height(4.dp))
                     BalanceRadar(
                         values = state.balanceByGroup,

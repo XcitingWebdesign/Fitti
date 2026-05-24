@@ -23,7 +23,7 @@ import com.fitti.domain.Achievement
 import com.fitti.domain.AchievementService
 import com.fitti.domain.Exercise
 import com.fitti.domain.StartWorkoutSessionUseCase
-import com.fitti.domain.StrengthEstimator
+import com.fitti.domain.BalanceCalculator
 import com.fitti.ui.common.FRESHNESS_FRESH_DAYS
 import com.fitti.ui.common.FRESHNESS_STALE_DAYS
 import com.fitti.ui.common.WEIGHT_LOG_INTERVAL_DAYS
@@ -102,8 +102,8 @@ class HomeViewModel(
         viewModelScope.launch {
             workoutRepo.observeSessionHistories().collect { histories ->
                 val sessions = histories.map { it.session }
-                val raw = StrengthEstimator.groupMax(histories)
-                val normalized = StrengthEstimator.normalize(raw)
+                val raw = BalanceCalculator.volumeByGroup(histories)
+                val normalized = BalanceCalculator.normalize(raw)
                 val streak = AchievementService.computeStreak(sessions)
                 val earned = AchievementService.computeAchievements(
                     sessions = sessions,
