@@ -113,6 +113,7 @@ fun HomeScreen(
 
     HomeScreenContent(
         state = state,
+        exerciseRepo = exerciseRepo,
         settingsRepo = settingsRepo,
         workoutRepo = workoutRepo,
         weightLogDao = weightLogDao,
@@ -137,6 +138,7 @@ fun HomeScreen(
 @Composable
 private fun HomeScreenContent(
     state: HomeUiState,
+    exerciseRepo: ExerciseRepository,
     settingsRepo: SettingsRepository,
     workoutRepo: WorkoutSessionRepository,
     weightLogDao: WeightLogDao,
