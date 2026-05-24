@@ -940,6 +940,9 @@ private fun AddExerciseDialog(
     var padPos by remember { mutableStateOf("") }
     var groupExpanded by remember { mutableStateOf(false) }
     var unitExpanded by remember { mutableStateOf(false) }
+    var stackPreset by remember { mutableStateOf(STACK_PRESET_NAUTILUS_KG) }
+    var stackCustom by remember { mutableStateOf("") }
+    var stackExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1022,12 +1025,61 @@ private fun AddExerciseDialog(
                                     text = { Text(unit) },
                                     onClick = {
                                         weightUnit = unit
+                                        if (unit == "lb" && stackPreset == STACK_PRESET_NAUTILUS_KG) {
+                                            stackPreset = STACK_PRESET_NAUTILUS_LB
+                                        }
                                         unitExpanded = false
                                     }
                                 )
                             }
                         }
                     }
+                }
+
+                // Stack preset dropdown
+                ExposedDropdownMenuBox(
+                    expanded = stackExpanded,
+                    onExpandedChange = { stackExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = stackPresetLabel(stackPreset),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Gewichts-Stack") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = stackExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = stackExpanded,
+                        onDismissRequest = { stackExpanded = false }
+                    ) {
+                        listOf(
+                            STACK_PRESET_NAUTILUS_KG,
+                            STACK_PRESET_NAUTILUS_HEAVY_KG,
+                            STACK_PRESET_NAUTILUS_LB,
+                            STACK_PRESET_NONE,
+                            STACK_PRESET_CUSTOM
+                        ).forEach { preset ->
+                            DropdownMenuItem(
+                                text = { Text(stackPresetLabel(preset)) },
+                                onClick = {
+                                    stackPreset = preset
+                                    stackExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (stackPreset == STACK_PRESET_CUSTOM) {
+                    OutlinedTextField(
+                        value = stackCustom,
+                        onValueChange = { stackCustom = it },
+                        label = { Text("Eigene Stufen (komma-getrennt)") },
+                        placeholder = { Text("z.B. 5,10,15,20,25") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1063,6 +1115,13 @@ private fun AddExerciseDialog(
                     val parsedWeight = weight.replace(",", ".").toDoubleOrNull() ?: return@Button
                     val parsedStep = step.replace(",", ".").toDoubleOrNull()?.coerceIn(0.5, 20.0) ?: defaultProgressionStep
                     if (code.isBlank()) return@Button
+                    val chosenStack = when (stackPreset) {
+                        STACK_PRESET_NAUTILUS_KG -> ExerciseEntity.NAUTILUS_WEIGHT_STACK_KG
+                        STACK_PRESET_NAUTILUS_HEAVY_KG -> ExerciseEntity.NAUTILUS_HEAVY_STACK_KG
+                        STACK_PRESET_NAUTILUS_LB -> ExerciseEntity.NAUTILUS_WEIGHT_STACK_LB
+                        STACK_PRESET_CUSTOM -> stackCustom.trim()
+                        else -> ""
+                    }
                     onAdd(
                         ExerciseEntity(
                             code = code.trim(),
@@ -1074,7 +1133,8 @@ private fun AddExerciseDialog(
                             recordedOn = formatDate(Date()),
                             progressionStepKg = parsedStep,
                             seatPosition = seatPos.trim(),
-                            padPosition = padPos.trim()
+                            padPosition = padPos.trim(),
+                            weightSteps = chosenStack
                         )
                     )
                 }
@@ -1551,4 +1611,19 @@ private fun shareText(context: Context, text: String, filename: String) {
         Intent.createChooser(intent, "Ger\u00e4te exportieren")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     )
+}
+
+private const val STACK_PRESET_NAUTILUS_KG = "nautilus_kg"
+private const val STACK_PRESET_NAUTILUS_HEAVY_KG = "nautilus_heavy_kg"
+private const val STACK_PRESET_NAUTILUS_LB = "nautilus_lb"
+private const val STACK_PRESET_NONE = "none"
+private const val STACK_PRESET_CUSTOM = "custom"
+
+private fun stackPresetLabel(preset: String): String = when (preset) {
+    STACK_PRESET_NAUTILUS_KG -> "Nautilus Standard (kg)"
+    STACK_PRESET_NAUTILUS_HEAVY_KG -> "Nautilus Heavy (kg)"
+    STACK_PRESET_NAUTILUS_LB -> "Nautilus Standard (lb)"
+    STACK_PRESET_NONE -> "Kein Stack (freie Eingabe)"
+    STACK_PRESET_CUSTOM -> "Eigener Stack"
+    else -> preset
 }

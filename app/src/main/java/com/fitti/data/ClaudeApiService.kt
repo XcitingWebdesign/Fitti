@@ -1,5 +1,6 @@
 package com.fitti.data
 
+import com.fitti.domain.ProgressionService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -23,8 +24,10 @@ class ClaudeApiService(
         bodyMeasurements: List<BodyMeasurementEntity> = emptyList(),
         nutritionLogs: List<NutritionLogEntity> = emptyList()
     ): Result<String> {
-        val systemPrompt = "Du bist ein erfahrener Personal Trainer, der Zirkeltraining an Maschinen betreut. " +
-                "Dein Klient trainiert regelm\u00e4\u00dfig an Kraftmaschinen (Nautilus, etc.) im Zirkel.\n\n" +
+        val systemPrompt = "Du bist ein erfahrener Personal Trainer, der Zirkeltraining an Kraftmaschinen betreut. " +
+                "Dein Klient trainiert regelm\u00e4\u00dfig im Zirkel.\n\n" +
+                "Dein Ziel ergibt sich aus dem Ziel des Klienten \u2013 du arbeitest darauf hin, dieses bestm\u00f6glich zu erreichen. " +
+                "Dabei gilt als nicht verhandelbare Regel: Slow and steady am Optimum ist besser als \u00dcberlastung und Verletzung.\n\n" +
                 "Du erh\u00e4ltst das heutige Training UND die Trainingshistorie der letzten Wochen/Monate.\n" +
                 "Analysiere das Training im Kontext der langfristigen Entwicklung:\n" +
                 "- Leistungsqualit\u00e4t: Wurden alle S\u00e4tze im Zielbereich geschafft?\n" +
@@ -33,7 +36,8 @@ class ClaudeApiService(
                 "- Konsistenz: Wie regelm\u00e4\u00dfig wird trainiert? Gibt es L\u00fccken?\n" +
                 "- K\u00f6rpergewicht: Passt die Gewichtsentwicklung zum Ziel?\n\n" +
                 "Antworte auf Deutsch in 4\u20138 S\u00e4tzen. Sei direkt, motivierend und konkret. " +
-                "Nenne die \u00dcbungen beim Namen. Ordne die heutige Leistung in den Gesamttrend ein."
+                "Nenne die \u00dcbungen beim Namen (gerne mit Code in Klammern). Ordne die heutige Leistung in den Gesamttrend ein. " +
+                "Konkrete Gewichtsempfehlungen bleiben bei der w\u00f6chentlichen Coaching-Sitzung \u2013 hier nur einordnen."
 
         val userMessage = buildString {
             appendLine("=== Heutiges Training ===")
@@ -69,8 +73,10 @@ class ClaudeApiService(
         bodyMeasurements: List<BodyMeasurementEntity> = emptyList(),
         nutritionLogs: List<NutritionLogEntity> = emptyList()
     ): Result<String> {
-        val systemPrompt = "Du bist ein erfahrener Personal Trainer, der Zirkeltraining an Maschinen betreut. " +
-                "Dein Klient trainiert regelm\u00e4\u00dfig an Kraftmaschinen (Nautilus, etc.) im Zirkel.\n\n" +
+        val systemPrompt = "Du bist ein erfahrener Personal Trainer, der Zirkeltraining an Kraftmaschinen betreut. " +
+                "Dein Klient trainiert regelm\u00e4\u00dfig im Zirkel.\n\n" +
+                "Dein Ziel ergibt sich aus dem Ziel des Klienten \u2013 du arbeitest darauf hin, dieses bestm\u00f6glich zu erreichen. " +
+                "Dabei gilt als nicht verhandelbare Regel: Slow and steady am Optimum ist besser als \u00dcberlastung und Verletzung.\n\n" +
                 "Du erh\u00e4ltst die Trainings der letzten Woche UND die langfristige Trainingshistorie.\n" +
                 "Erstelle eine Analyse im Kontext der Gesamtentwicklung:\n" +
                 "- Trainingsh\u00e4ufigkeit: Genug Einheiten pro Woche? Wie ist der Trend?\n" +
@@ -79,7 +85,8 @@ class ClaudeApiService(
                 "- K\u00f6rpergewicht: Entwicklung passend zum Ziel?\n" +
                 "- Erholung: Genug Pause zwischen Trainings der gleichen Muskelgruppe?\n\n" +
                 "Antworte auf Deutsch in 5\u201310 S\u00e4tzen. Sei direkt und konkret. " +
-                "Gib 1\u20132 spezifische Empfehlungen. Ordne die Woche in den Gesamttrend ein."
+                "Gib 1\u20132 spezifische Empfehlungen mit \u00dcbungsnamen (Code in Klammern). Ordne die Woche in den Gesamttrend ein. " +
+                "Konkrete Gewichtsvorgaben bleiben beim Wochen-Coaching \u2013 hier nur einordnen."
 
         val userMessage = buildString {
             appendLine("=== Trainings der letzten Woche (${sessions.size} Einheiten) ===")
@@ -316,7 +323,7 @@ class ClaudeApiService(
             val ex = exerciseWithLogs.sessionExercise
             val logs = exerciseWithLogs.setLogs.sortedBy { it.setNumber }
 
-            append("- ${ex.exerciseDisplayName} [${ex.exerciseMuscleGroup}]")
+            append("- [${ex.exerciseCode}] ${ex.exerciseDisplayName} [${ex.exerciseMuscleGroup}]")
             append(": Soll ${ex.targetWeight} kg x ${ex.targetRepsMin}-${ex.targetReps} Wdh x ${ex.targetSets} S\u00e4tze")
 
             // Exercise duration
@@ -363,6 +370,7 @@ class ClaudeApiService(
 
     suspend fun getWeeklyCoaching(
         sessions: List<WorkoutSessionHistory>,
+        availableExercises: List<ExerciseEntity>,
         userGoal: String,
         latestWeightKg: Double?,
         heightCm: Int = 0,
@@ -372,12 +380,16 @@ class ClaudeApiService(
         nutritionLogs: List<NutritionLogEntity> = emptyList(),
         previousCoaching: String? = null
     ): Result<String> {
-        val systemPrompt = "Du bist ein erfahrener Personal Trainer und Ziel-Coach f\u00fcr Zirkeltraining an Maschinen (Nautilus).\n" +
-                "Dein Klient trainiert regelm\u00e4\u00dfig an Kraftmaschinen im Zirkel und hat dir seine Vision anvertraut.\n\n" +
+        val systemPrompt = "Du bist ein erfahrener Personal Trainer und Ziel-Coach f\u00fcr Zirkeltraining an Kraftmaschinen.\n" +
+                "Dein Klient trainiert regelm\u00e4\u00dfig im Zirkel und hat dir seine Vision anvertraut.\n\n" +
+                "Dein Ziel ergibt sich aus dem Ziel des Klienten \u2013 du arbeitest darauf hin, dieses bestm\u00f6glich zu erreichen. " +
+                "Dabei gilt als nicht verhandelbare Regel: **Slow and steady am Optimum ist besser als \u00dcberlastung und Verletzung.** " +
+                "Lieber eine Stufe weniger und konstant progressiv als ein zu gro\u00dfer Sprung mit Verletzungsrisiko.\n\n" +
                 "Deine Aufgabe ist es, als pers\u00f6nlicher Coach zu fungieren, der:\n" +
                 "1. Die Vision/das Ziel des Klienten ernst nimmt und in erreichbare Teilziele \u00fcbersetzt\n" +
                 "2. Den Fortschritt bei jedem Coaching anhand konkreter Messwerte bewertet\n" +
-                "3. Kontinuit\u00e4t zwischen Coaching-Sitzungen wahrt\n\n" +
+                "3. Kontinuit\u00e4t zwischen Coaching-Sitzungen wahrt\n" +
+                "4. Verletzungspr\u00e4vention immer \u00fcber schnelle Progression stellt\n\n" +
                 "AUSGABEFORMAT (halte dich strikt daran):\n\n" +
                 "## Deine Vision\n" +
                 "[Wiederhole kurz die Vision des Klienten und ordne sie ein \u2013 was bedeutet sie konkret f\u00fcr das Training?]\n\n" +
@@ -395,7 +407,7 @@ class ClaudeApiService(
                 "Wichtige Regeln:\n" +
                 "- Antworte immer auf Deutsch\n" +
                 "- Sei direkt, ehrlich und motivierend\n" +
-                "- Nenne \u00dcbungen immer beim Namen\n" +
+                "- Nenne \u00dcbungen immer beim Namen UND mit ihrem Code (z.B. \"Chest Press [B2]\")\n" +
                 "- Verwende die tats\u00e4chlichen Zahlen aus den Trainingsdaten\n" +
                 "- Wenn 'Tats\u00e4chlich verwendetes Gewicht' angegeben ist, beziehe dich in deinen Empfehlungen und Begr\u00fcndungen ausschlie\u00dflich auf diesen Wert, NICHT auf den Soll-Snapshot\n" +
                 "- Beziehe Umfangsmessungen (Brust/Taille/Bizeps) und Protein-Trefferquote in deine Bewertung ein, sofern Daten vorhanden sind\n" +
@@ -419,13 +431,25 @@ class ClaudeApiService(
                 "    \"bodyweight_kg\": Zahl (Wochen-Ziel-K\u00f6rpergewicht)\n" +
                 "  },\n" +
                 "  \"exercise_targets\": [\n" +
-                "    {\"code\": \"\u00dcbungscode (B2/B6/C2/C6/D3/D4/F3/F6)\", \"action\": \"progress\" oder \"hold\" oder \"deload\", \"weight_kg\": Zielgewicht, \"reason\": \"kurze Begr\u00fcndung\"}\n" +
+                "    {\"code\": \"einer der unten gelisteten Codes\", \"action\": \"progress\" oder \"hold\" oder \"deload\", \"weight_kg\": Zielgewicht, \"reason\": \"kurze Begr\u00fcndung zu GENAU dieser \u00dcbung\"}\n" +
                 "  ]\n" +
                 "}\n" +
                 "</plan>\n\n" +
-                "Der bottleneck ist die EINE Zahl, die diese Woche am wichtigsten ist (z.B. K\u00f6rpergewicht-Ziel, wenn der Klient Untergewicht hat). F\u00fchre f\u00fcr JEDE der 8 \u00dcbungen einen Eintrag in exercise_targets auf. action=\"hold\" wenn die letzte Session inkonsistent war (z.B. 10/12 Wdh statt 12/12). action=\"progress\" wenn alle S\u00e4tze sauber bei Max-Reps geschafft wurden. Verwende ausschlie\u00dflich kg, keine lb."
+                "REGELN F\u00dcR DEN <plan>-BLOCK (zwingend einzuhalten):\n" +
+                "- Der `code` in jedem Eintrag MUSS exakt einer der oben in \"Verf\u00fcgbare Ger\u00e4te\" gelisteten Codes sein. Keine erfundenen oder anderen Codes.\n" +
+                "- Die `reason` darf sich AUSSCHLIESSLICH auf die \u00dcbung mit genau diesem Code beziehen. Nenne in der reason nicht den Namen einer anderen \u00dcbung.\n" +
+                "- F\u00fchre f\u00fcr jede der oben aufgef\u00fchrten \u00dcbungen genau einen Eintrag in `exercise_targets` auf.\n" +
+                "- Bei `action=\"progress\"`: `weight_kg` darf h\u00f6chstens EINE Stufe \u00fcber dem aktuellen Gewicht aus der Stack-Liste liegen \u2013 und niemals mehr als `progressionStepKg` dar\u00fcber, je nachdem was kleiner ist. Keine 10-kg-Spr\u00fcnge, au\u00dfer der Stack des Ger\u00e4ts ist entsprechend grob (z.B. Leg Press mit 9-kg-Spr\u00fcngen).\n" +
+                "- Bei `action=\"deload\"`: `weight_kg` mindestens eine Stufe UNTER dem aktuellen Gewicht.\n" +
+                "- Bei `action=\"hold\"`: `weight_kg` = aktuelles Gewicht.\n" +
+                "- Setze `action=\"hold\"` wenn die letzte Session inkonsistent war (z.B. 10/12 Wdh statt 12/12) oder wenn du unsicher bist. Im Zweifel IMMER hold statt zu gro\u00dfer Sprung.\n" +
+                "- Setze `action=\"progress\"` nur, wenn alle S\u00e4tze sauber bei Max-Reps geschafft wurden UND der Sprung innerhalb einer Stufe bleibt.\n" +
+                "- Verwende ausschlie\u00dflich kg, keine lb.\n" +
+                "- Der bottleneck ist die EINE Zahl, die diese Woche am wichtigsten ist (z.B. K\u00f6rpergewicht-Ziel, wenn der Klient Untergewicht hat)."
 
         val userMessage = buildString {
+            appendLine(formatAvailableExercises(availableExercises))
+            appendLine()
             appendLine("=== Trainings der letzten Woche (${sessions.size} Einheiten) ===")
             appendLine()
             sessions.forEachIndexed { index, history ->
@@ -463,6 +487,46 @@ class ClaudeApiService(
         }
 
         return callClaudeWithThinking(systemPrompt, userMessage)
+    }
+
+    /**
+     * Baut eine Liste aller verf\u00fcgbaren Ger\u00e4te mit Code, Name, Muskelgruppe,
+     * aktuellem Gewicht, Standard-Schrittweite und einem Auszug aus dem Stack
+     * (\u00b15 Stufen rund um das aktuelle Gewicht), damit Claude im Prompt eine
+     * eindeutige Code\u2194Name-Zuordnung und konkrete Schrittgr\u00f6\u00dfen hat.
+     */
+    private fun formatAvailableExercises(exercises: List<ExerciseEntity>): String = buildString {
+        appendLine("=== Verf\u00fcgbare Ger\u00e4te ===")
+        appendLine("Codes, Namen, Muskelgruppe, aktuelles Gewicht, Standard-Schritt, zul\u00e4ssige Stack-Stufen rund um den aktuellen Wert.")
+        appendLine("Die Codes in deinem <plan>-Block M\u00dcSSEN aus dieser Liste stammen \u2013 keine anderen!\n")
+        for (ex in exercises.sortedBy { it.sortOrder }) {
+            val stack = formatStackPreview(ex.weightSteps, ex.currentWeight)
+            val name = ex.displayName.ifBlank { ex.code }
+            val group = ex.muscleGroup.ifBlank { "?" }
+            val step = if (ex.progressionStepKg > 0.0) "${trimNumber(ex.progressionStepKg)} ${ex.weightUnit}" else "?"
+            appendLine(
+                "- ${ex.code} \u00b7 $name \u00b7 $group \u00b7 aktuell ${trimNumber(ex.currentWeight)} ${ex.weightUnit} " +
+                    "\u00b7 Schritt $step \u00b7 Stack: $stack"
+            )
+        }
+    }
+
+    private fun formatStackPreview(weightSteps: String, currentWeight: Double): String {
+        if (weightSteps.isBlank()) return "(kein Stack hinterlegt)"
+        val steps = ProgressionService.parseWeightSteps(weightSteps)
+        if (steps.isEmpty()) return "(kein Stack hinterlegt)"
+        var anchor = steps.indexOfFirst { it >= currentWeight - 0.01 }
+        if (anchor < 0) anchor = steps.size - 1
+        val from = (anchor - 5).coerceAtLeast(0)
+        val to = (anchor + 5).coerceAtMost(steps.size - 1)
+        val window = steps.subList(from, to + 1)
+        val prefix = if (from > 0) "\u2026, " else ""
+        val suffix = if (to < steps.size - 1) ", \u2026" else ""
+        return prefix + window.joinToString(", ") { trimNumber(it) } + suffix
+    }
+
+    private fun trimNumber(d: Double): String {
+        return if (d == d.toLong().toDouble()) d.toLong().toString() else "%.1f".format(d).replace(".", ",")
     }
 
     private fun formatTrainingMetrics(

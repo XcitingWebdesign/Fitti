@@ -145,6 +145,49 @@ class ActiveWorkoutViewModel(
         return ProgressionService.roundToHalf(suggested)
     }
 
+    /**
+     * Verletzungsschutz: Egal was der Coach vorschlägt – ein Progress-Vorschlag
+     * darf höchstens EINE Stack-Stufe (oder progressionStepKg) über dem aktuellen
+     * Gewicht liegen. Verhindert wilde +10-kg-Sprünge auf kleinen Geräten.
+     */
+    private fun capProgressionStep(
+        current: Double,
+        suggested: Double,
+        weightSteps: String,
+        progressionStepKg: Double
+    ): Double {
+        if (suggested <= current + 0.01) return suggested
+        val steps = ProgressionService.parseWeightSteps(weightSteps)
+        if (steps.isNotEmpty()) {
+            val nextStep = steps.firstOrNull { it > current + 0.01 } ?: return current
+            return minOf(suggested, nextStep)
+        }
+        val step = if (progressionStepKg > 0.0) progressionStepKg else 2.5
+        val cap = ProgressionService.roundToHalf(current + step)
+        return minOf(suggested, cap)
+    }
+
+    /**
+     * Analog zu capProgressionStep, aber für deload: höchstens EINE Stufe unter
+     * dem aktuellen Gewicht.
+     */
+    private fun capDeloadStep(
+        current: Double,
+        suggested: Double,
+        weightSteps: String,
+        progressionStepKg: Double
+    ): Double {
+        if (suggested >= current - 0.01) return suggested
+        val steps = ProgressionService.parseWeightSteps(weightSteps)
+        if (steps.isNotEmpty()) {
+            val prevStep = steps.lastOrNull { it < current - 0.01 } ?: return current
+            return maxOf(suggested, prevStep)
+        }
+        val step = if (progressionStepKg > 0.0) progressionStepKg else 2.5
+        val floor = ProgressionService.roundToHalf(current - step)
+        return maxOf(suggested, floor)
+    }
+
     init {
         loadSession()
     }
@@ -248,11 +291,17 @@ class ActiveWorkoutViewModel(
         val action = coachTarget.action
         return when {
             action == "progress" && coachTarget.targetWeightKg > 0.0 -> {
-                val w = normalizeCoachWeight(coachTarget.targetWeightKg, exercise.weightSteps)
-                if (w > exercise.targetWeight + 0.01) w to "progress" else null
+                val raw = normalizeCoachWeight(coachTarget.targetWeightKg, exercise.weightSteps)
+                val capped = capProgressionStep(
+                    current = exercise.targetWeight,
+                    suggested = raw,
+                    weightSteps = exercise.weightSteps,
+                    progressionStepKg = exercise.progressionStepKg
+                )
+                if (capped > exercise.targetWeight + 0.01) capped to "progress" else null
             }
             action == "deload" -> {
-                val w = if (coachTarget.targetWeightKg > 0.0) {
+                val raw = if (coachTarget.targetWeightKg > 0.0) {
                     normalizeCoachWeight(coachTarget.targetWeightKg, exercise.weightSteps)
                 } else {
                     val steps = ProgressionService.parseWeightSteps(exercise.weightSteps)
@@ -262,7 +311,13 @@ class ActiveWorkoutViewModel(
                         ProgressionService.roundToHalf(exercise.targetWeight * 0.95)
                     }
                 }
-                if (w < exercise.targetWeight - 0.01) w to "deload" else null
+                val capped = capDeloadStep(
+                    current = exercise.targetWeight,
+                    suggested = raw,
+                    weightSteps = exercise.weightSteps,
+                    progressionStepKg = exercise.progressionStepKg
+                )
+                if (capped < exercise.targetWeight - 0.01) capped to "deload" else null
             }
             else -> null
         }

@@ -396,6 +396,7 @@ private fun HomeScreenContent(
                                     val allWeightLogs = weightLogDao.getAll()
                                     val measurements = bodyMeasurementDao.getAll()
                                     val nutrition = nutritionLogDao.getAll()
+                                    val availableExercises = exerciseRepo.getAllEntities()
                                     val service = ClaudeApiService(
                                         apiKey = settingsRepo.claudeApiKey,
                                         sonnetModel = settingsRepo.claudeSonnetModel,
@@ -403,6 +404,7 @@ private fun HomeScreenContent(
                                     )
                                     service.getWeeklyCoaching(
                                         sessions = recentHistories,
+                                        availableExercises = availableExercises,
                                         userGoal = settingsRepo.goal,
                                         latestWeightKg = weight,
                                         heightCm = settingsRepo.heightCm,
@@ -419,7 +421,8 @@ private fun HomeScreenContent(
                                         aiAnalysisDao.insert(
                                             AiAnalysisEntity(analysisText = analysis, createdAt = ts)
                                         )
-                                        CoachingPlanParser.parse(analysis)?.let { (plan, targets) ->
+                                        val validCodes = availableExercises.map { it.code }.toSet()
+                                        CoachingPlanParser.parse(analysis, validCodes)?.let { (plan, targets) ->
                                             coachingPlanDao.savePlan(plan, targets)
                                         }
                                         onAfterCoaching()
