@@ -167,27 +167,6 @@ class ActiveWorkoutViewModel(
         return minOf(suggested, cap)
     }
 
-    /**
-     * Analog zu capProgressionStep, aber für deload: höchstens EINE Stufe unter
-     * dem aktuellen Gewicht.
-     */
-    private fun capDeloadStep(
-        current: Double,
-        suggested: Double,
-        weightSteps: String,
-        progressionStepKg: Double
-    ): Double {
-        if (suggested >= current - 0.01) return suggested
-        val steps = ProgressionService.parseWeightSteps(weightSteps)
-        if (steps.isNotEmpty()) {
-            val prevStep = steps.lastOrNull { it < current - 0.01 } ?: return current
-            return maxOf(suggested, prevStep)
-        }
-        val step = if (progressionStepKg > 0.0) progressionStepKg else 2.5
-        val floor = ProgressionService.roundToHalf(current - step)
-        return maxOf(suggested, floor)
-    }
-
     init {
         loadSession()
     }
@@ -311,13 +290,11 @@ class ActiveWorkoutViewModel(
                         ProgressionService.roundToHalf(exercise.targetWeight * 0.95)
                     }
                 }
-                val capped = capDeloadStep(
-                    current = exercise.targetWeight,
-                    suggested = raw,
-                    weightSteps = exercise.weightSteps,
-                    progressionStepKg = exercise.progressionStepKg
-                )
-                if (capped < exercise.targetWeight - 0.01) capped to "deload" else null
+                // Anders als bei der Progression wird der Deload NICHT auf eine Stufe
+                // begrenzt: Nach unten besteht kein Verletzungsrisiko, daher darf der
+                // volle Coach-Vorschlag (z.B. Reset auf 40 kg) uebernommen werden. So
+                // stimmen Coach-Text und Button-Zielgewicht ueberein.
+                if (raw < exercise.targetWeight - 0.01) raw to "deload" else null
             }
             else -> null
         }
