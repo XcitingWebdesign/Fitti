@@ -639,10 +639,17 @@ class ClaudeApiService(
             append(formatAvailableExercises(exercises))
         }
 
-        return callClaude(systemPrompt, userMessage)
+        // Hoeheres Token-Budget: Fliesstext + JSON-Block fuer bis zu 6 Gruppen
+        // (je mit Begruendung) passt nicht zuverlaessig in 1024 Tokens – sonst
+        // wird die Antwort vor </targets> abgeschnitten und nicht parsebar.
+        return callClaude(systemPrompt, userMessage, maxTokens = 2048)
     }
 
-    private suspend fun callClaude(systemPrompt: String, userMessage: String): Result<String> =
+    private suspend fun callClaude(
+        systemPrompt: String,
+        userMessage: String,
+        maxTokens: Int = 1024
+    ): Result<String> =
         withContext(Dispatchers.IO) {
             val started = System.currentTimeMillis()
             var phase = "connect"
@@ -660,7 +667,7 @@ class ClaudeApiService(
 
                     val body = JSONObject().apply {
                         put("model", sonnetModel)
-                        put("max_tokens", 1024)
+                        put("max_tokens", maxTokens)
                         put("system", systemPrompt)
                         put("messages", JSONArray().put(
                             JSONObject().apply {
