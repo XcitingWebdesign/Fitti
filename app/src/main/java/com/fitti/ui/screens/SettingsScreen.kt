@@ -46,8 +46,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.fitti.data.ClaudeApiService
 import com.fitti.data.ExerciseEntity
 import com.fitti.data.ExerciseRepository
+import com.fitti.data.StrengthTargetParser
 import com.fitti.data.SessionExerciseEntity
 import com.fitti.data.SetLogEntity
 import com.fitti.data.SettingsRepository
@@ -57,6 +59,7 @@ import com.fitti.data.WorkoutSessionDao
 import com.fitti.data.WorkoutSessionEntity
 import com.fitti.domain.Exercise
 import com.fitti.domain.ProgressionService
+import com.fitti.domain.StrengthTargets
 import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.formatDate
 import com.fitti.ui.common.formatDateTime
@@ -71,6 +74,39 @@ import java.util.Date
 import java.util.Locale
 
 private val allMuscleGroups = listOf("CHEST", "BACK", "LEGS", "SHOULDERS", "ARMS", "ABS")
+
+private val genderOptions = listOf(
+    "" to "(keine Angabe)",
+    "male" to "Männlich",
+    "female" to "Weiblich",
+    "other" to "Divers"
+)
+
+private val bodyTypeOptions = listOf(
+    "" to "(keine Angabe)",
+    "ektomorph" to "Ektomorph (schlank)",
+    "mesomorph" to "Mesomorph (athletisch)",
+    "endomorph" to "Endomorph (kräftig)"
+)
+
+private fun labelFor(options: List<Pair<String, String>>, value: String): String =
+    options.firstOrNull { it.first == value }?.second ?: "(keine Angabe)"
+
+/** Alter in Jahren aus "dd.MM.yyyy"; null wenn leer/ungueltig. */
+private fun ageFromBirthDate(birthDate: String): Int? {
+    if (birthDate.isBlank()) return null
+    return try {
+        val fmt = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY).apply { isLenient = false }
+        val date = fmt.parse(birthDate) ?: return null
+        val dob = java.util.Calendar.getInstance().apply { time = date }
+        val now = java.util.Calendar.getInstance()
+        var age = now.get(java.util.Calendar.YEAR) - dob.get(java.util.Calendar.YEAR)
+        if (now.get(java.util.Calendar.DAY_OF_YEAR) < dob.get(java.util.Calendar.DAY_OF_YEAR)) age--
+        if (age in 0..130) age else null
+    } catch (_: Exception) {
+        null
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,6 +141,23 @@ fun SettingsScreen(
     var exerciseSeats by remember { mutableStateOf(emptyMap<Long, String>()) }
     var exercisePads by remember { mutableStateOf(emptyMap<Long, String>()) }
     var exerciseStacks by remember { mutableStateOf(emptyMap<Long, String>()) }
+    var exerciseGroups by remember { mutableStateOf(emptyMap<Long, String>()) }
+    var groupMenuFor by remember { mutableStateOf<Long?>(null) }
+
+    // Profil: Geschlecht / Geburtsdatum / Koerpertyp (fuer KI-Zielwerte)
+    var gender by remember { mutableStateOf(settingsRepo.gender) }
+    var birthDate by remember { mutableStateOf(settingsRepo.birthDate) }
+    var bodyType by remember { mutableStateOf(settingsRepo.bodyType) }
+    var genderExpanded by remember { mutableStateOf(false) }
+    var bodyTypeExpanded by remember { mutableStateOf(false) }
+
+    // Ziel-Radar: von Claude abgeleitete Zielwerte (editierbar fuer Trainer-QA)
+    var strengthTargets by remember { mutableStateOf(StrengthTargets.fromJson(settingsRepo.targetStrengthJson)) }
+    var targetEdits by remember {
+        mutableStateOf(strengthTargets?.byGroup?.mapValues { it.value.cleanWeight() } ?: emptyMap())
+    }
+    var targetStatus by remember { mutableStateOf("") }
+    var targetLoading by remember { mutableStateOf(false) }
 
     // Notification toggles
     var dailyReminderEnabled by remember { mutableStateOf(settingsRepo.dailyReminderEnabled) }
@@ -174,6 +227,7 @@ fun SettingsScreen(
                     exerciseSeats = list.associate { it.id to it.seatPosition }
                     exercisePads = list.associate { it.id to it.padPosition }
                     exerciseStacks = list.associate { it.id to it.weightSteps }
+                    exerciseGroups = list.associate { it.id to it.muscleGroup }
                 }
             }
         }
@@ -257,6 +311,178 @@ fun SettingsScreen(
                         { Text(lastWeightInfo) }
                     } else null
                 )
+            }
+
+            // Geschlecht
+            item {
+                ExposedDropdownMenuBox(
+                    expanded = genderExpanded,
+                    onExpandedChange = { genderExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = labelFor(genderOptions, gender),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Geschlecht") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = genderExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = genderExpanded,
+                        onDismissRequest = { genderExpanded = false }
+                    ) {
+                        genderOptions.forEach { (value, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = { gender = value; genderExpanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Geburtsdatum
+            item {
+                OutlinedTextField(
+                    value = birthDate,
+                    onValueChange = { birthDate = it },
+                    label = { Text("Geburtsdatum (TT.MM.JJJJ)") },
+                    placeholder = { Text("z.B. 15.03.1980") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    supportingText = ageFromBirthDate(birthDate)?.let { { Text("Alter: $it Jahre") } }
+                )
+            }
+
+            // Koerpertyp
+            item {
+                ExposedDropdownMenuBox(
+                    expanded = bodyTypeExpanded,
+                    onExpandedChange = { bodyTypeExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = labelFor(bodyTypeOptions, bodyType),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Körpertyp") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = bodyTypeExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = bodyTypeExpanded,
+                        onDismissRequest = { bodyTypeExpanded = false }
+                    ) {
+                        bodyTypeOptions.forEach { (value, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = { bodyType = value; bodyTypeExpanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Ziel-Radar: Zielwerte pro Muskelgruppe (KI-generiert, editierbar fuer Trainer-QA)
+            item {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Zielzustand (Ziel-Radar)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Claude leitet aus deinem Profil und deinen Geräten Ziel-Arbeitsgewichte " +
+                        "(8–12 Wdh.) pro Muskelgruppe ab. Werte sind editierbar – ideal zur Prüfung " +
+                        "durch deinen Personal Trainer.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        if (settingsRepo.claudeApiKey.isBlank()) {
+                            targetStatus = "Kein Claude API-Schlüssel hinterlegt."
+                            return@OutlinedButton
+                        }
+                        targetLoading = true
+                        targetStatus = "Generiere Zielwerte …"
+                        scope.launch {
+                            val service = ClaudeApiService(
+                                apiKey = settingsRepo.claudeApiKey,
+                                sonnetModel = settingsRepo.claudeSonnetModel,
+                                opusModel = settingsRepo.claudeOpusModel
+                            )
+                            val allExercises = exerciseRepo.getAllEntities()
+                            val bw = weightKg.replace(",", ".").toDoubleOrNull()
+                                ?: weightLogDao.getLatest()?.weightKg
+                            val age = ageFromBirthDate(birthDate)
+                            val inputs = listOfNotNull(
+                                gender.takeIf { it.isNotBlank() }?.let { labelFor(genderOptions, it) },
+                                age?.let { "$it J" },
+                                heightCm.toIntOrNull()?.takeIf { it > 0 }?.let { "$it cm" },
+                                bw?.let { "${it.cleanWeight()} kg" },
+                                bodyType.takeIf { it.isNotBlank() }?.let { labelFor(bodyTypeOptions, it) }
+                            ).joinToString(", ")
+                            val result = service.getStrengthTargets(
+                                goal = goal,
+                                gender = gender.takeIf { it.isNotBlank() }?.let { labelFor(genderOptions, it) } ?: "",
+                                ageYears = age,
+                                heightCm = heightCm.toIntOrNull() ?: 0,
+                                bodyweightKg = bw,
+                                bodyType = bodyType.takeIf { it.isNotBlank() }?.let { labelFor(bodyTypeOptions, it) } ?: "",
+                                exercises = allExercises
+                            )
+                            result.onSuccess { text ->
+                                val parsed = StrengthTargetParser.parse(text, inputs)
+                                if (parsed != null) {
+                                    strengthTargets = parsed
+                                    targetEdits = parsed.byGroup.mapValues { it.value.cleanWeight() }
+                                    settingsRepo.targetStrengthJson = parsed.toJson()
+                                    targetStatus = "Zielwerte erstellt (${parsed.generatedAt})."
+                                } else {
+                                    targetStatus = "Antwort konnte nicht gelesen werden."
+                                }
+                            }.onFailure {
+                                targetStatus = "Fehler: ${it.message}"
+                            }
+                            targetLoading = false
+                        }
+                    },
+                    enabled = !targetLoading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (targetLoading) "Generiere …" else "Zielwerte generieren")
+                }
+                if (targetStatus.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = targetStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                val current = strengthTargets
+                if (current != null) {
+                    Spacer(Modifier.height(8.dp))
+                    StrengthTargets.GROUPS.filter { targetEdits.containsKey(it) }.forEach { group ->
+                        OutlinedTextField(
+                            value = targetEdits[group] ?: "",
+                            onValueChange = { targetEdits = targetEdits + (group to it) },
+                            label = { Text("Ziel ${muscleGroupLabels[group] ?: group} (kg)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = current.rationaleByGroup[group]
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { { Text(it) } }
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
             }
 
             // Training section
@@ -570,6 +796,37 @@ fun SettingsScreen(
                         )
                     }
 
+                    // Muskelgruppe (editierbar – wirkt direkt aufs Ziel-Radar)
+                    val rowGroup = exerciseGroups[exercise.id] ?: exercise.muscleGroup
+                    ExposedDropdownMenuBox(
+                        expanded = groupMenuFor == exercise.id,
+                        onExpandedChange = { groupMenuFor = if (it) exercise.id else null },
+                        modifier = Modifier.padding(start = 44.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = if (rowGroup.isBlank()) "(keine)" else (muscleGroupLabels[rowGroup] ?: rowGroup),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Muskelgruppe") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = groupMenuFor == exercise.id) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = groupMenuFor == exercise.id,
+                            onDismissRequest = { groupMenuFor = null }
+                        ) {
+                            allMuscleGroups.forEach { group ->
+                                DropdownMenuItem(
+                                    text = { Text(muscleGroupLabels[group] ?: group) },
+                                    onClick = {
+                                        exerciseGroups = exerciseGroups + (exercise.id to group)
+                                        groupMenuFor = null
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     // Weight stack CSV editor
                     OutlinedTextField(
                         value = exerciseStacks[exercise.id] ?: exercise.weightSteps,
@@ -758,6 +1015,23 @@ fun SettingsScreen(
                             .ifBlank { SettingsRepository.DEFAULT_SONNET_MODEL }
                         settingsRepo.claudeOpusModel = opusModel.trim()
                             .ifBlank { SettingsRepository.DEFAULT_OPUS_MODEL }
+                        settingsRepo.gender = gender
+                        settingsRepo.birthDate = birthDate.trim()
+                        settingsRepo.bodyType = bodyType
+
+                        // Editierte Zielwerte uebernehmen (Trainer-QA)
+                        val baseTargets = strengthTargets
+                        if (baseTargets != null) {
+                            val editedByGroup = mutableMapOf<String, Double>()
+                            for ((group, txt) in targetEdits) {
+                                val v = txt.replace(",", ".").toDoubleOrNull()
+                                if (v != null && v > 0) editedByGroup[group] = v
+                            }
+                            if (editedByGroup.isNotEmpty()) {
+                                settingsRepo.targetStrengthJson =
+                                    baseTargets.copy(byGroup = editedByGroup).toJson()
+                            }
+                        }
 
                         val weight = weightKg.replace(",", ".").toDoubleOrNull()
                         if (weight != null && weight in 20.0..300.0) {
@@ -802,6 +1076,10 @@ fun SettingsScreen(
                                     if (w != null && w > 0) {
                                         exerciseRepo.updateWeight(ex.id, w, today)
                                     }
+                                }
+                                val group = exerciseGroups[ex.id]
+                                if (group != null && group != ex.muscleGroup) {
+                                    exerciseRepo.updateMuscleGroup(ex.id, group)
                                 }
                             }
                         }

@@ -41,6 +41,9 @@ interface ExerciseDao {
     @Query("UPDATE exercises SET weightSteps = :steps WHERE id = :exerciseId")
     suspend fun updateWeightSteps(exerciseId: Long, steps: String)
 
+    @Query("UPDATE exercises SET muscleGroup = :group WHERE id = :exerciseId")
+    suspend fun updateMuscleGroup(exerciseId: Long, group: String)
+
     @Query("DELETE FROM exercises WHERE id = :exerciseId")
     suspend fun deleteById(exerciseId: Long)
 

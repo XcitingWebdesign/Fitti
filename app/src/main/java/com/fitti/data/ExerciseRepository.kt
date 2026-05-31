@@ -35,6 +35,10 @@ class ExerciseRepository(
         dao.updateWeightSteps(exerciseId, steps)
     }
 
+    suspend fun updateMuscleGroup(exerciseId: Long, group: String) {
+        dao.updateMuscleGroup(exerciseId, group)
+    }
+
     suspend fun addExercise(entity: ExerciseEntity): Long =
         dao.insert(entity)
 
