@@ -444,7 +444,9 @@ fun SettingsScreen(
                                     settingsRepo.targetStrengthJson = parsed.toJson()
                                     targetStatus = "Zielwerte erstellt (${parsed.generatedAt})."
                                 } else {
-                                    targetStatus = "Antwort konnte nicht gelesen werden."
+                                    val snippet = text.trim().take(160)
+                                    targetStatus = "Antwort konnte nicht gelesen werden. " +
+                                        "Claude lieferte: »$snippet…«"
                                 }
                             }.onFailure {
                                 targetStatus = "Fehler: ${it.message}"
