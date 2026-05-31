@@ -38,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,6 +56,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fitti.data.AiAnalysisDao
 import com.fitti.data.AiAnalysisEntity
@@ -110,6 +114,17 @@ fun HomeScreen(
         )
     )
     val state by vm.uiState.collectAsState()
+
+    // Bei Rueckkehr (z.B. aus den Einstellungen, wo Zielwerte generiert werden)
+    // das Ziel-Radar und die Checks neu berechnen.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) vm.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     HomeScreenContent(
         state = state,
@@ -310,24 +325,44 @@ private fun HomeScreenContent(
                 }
             }
 
-            // Balance Radar
-            if (state.balanceByGroup.isNotEmpty()) {
-                item {
+            // Ziel-Radar: Kraft-Fortschritt zum Ziel
+            item {
+                Text(
+                    text = "Kraft-Fortschritt zum Ziel",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (state.hasStrengthTargets) {
                     Text(
-                        text = "Balance",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Trainingsvolumen letzte 14 Tage",
+                        text = if (state.strengthTargetsGeneratedAt.isNotBlank())
+                            "Zielwerte vom ${state.strengthTargetsGeneratedAt}"
+                        else "Aktuelle Kraft im Verhältnis zum Ziel",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(4.dp))
                     BalanceRadar(
-                        values = state.balanceByGroup,
+                        values = state.targetProgressByGroup,
                         modifier = Modifier.fillMaxWidth()
                     )
+                } else {
+                    Spacer(Modifier.height(4.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "Noch keine Zielwerte. Generiere sie in den Einstellungen " +
+                                "(Profil ausfüllen → „Zielwerte generieren“), um deinen " +
+                                "Fortschritt zum Ziel zu sehen.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 }
             }
 

@@ -23,7 +23,8 @@ import com.fitti.domain.Achievement
 import com.fitti.domain.AchievementService
 import com.fitti.domain.Exercise
 import com.fitti.domain.StartWorkoutSessionUseCase
-import com.fitti.domain.BalanceCalculator
+import com.fitti.domain.StrengthTargets
+import com.fitti.domain.TargetRadarCalculator
 import com.fitti.ui.common.FRESHNESS_FRESH_DAYS
 import com.fitti.ui.common.FRESHNESS_STALE_DAYS
 import com.fitti.ui.common.WEIGHT_LOG_INTERVAL_DAYS
@@ -46,7 +47,9 @@ data class HomeUiState(
     val lastWeightKg: Double? = null,
     val goal: String = "",
     val weightLogs: List<WeightLogEntity> = emptyList(),
-    val balanceByGroup: Map<String, Float> = emptyMap(),
+    val targetProgressByGroup: Map<String, Float> = emptyMap(),
+    val hasStrengthTargets: Boolean = false,
+    val strengthTargetsGeneratedAt: String = "",
     val streakWeeks: Int = 0,
     val newAchievements: List<Achievement> = emptyList(),
     val activePlan: CoachingPlanWithTargets? = null,
@@ -83,6 +86,7 @@ class HomeViewModel(
             exerciseRepo.observeExercises().collect { exercises ->
                 _uiState.update { it.copy(exercises = exercises) }
                 updateMuscleGroupFreshness(exercises)
+                recomputeTargetRadar()
             }
         }
 
@@ -102,8 +106,6 @@ class HomeViewModel(
         viewModelScope.launch {
             workoutRepo.observeSessionHistories().collect { histories ->
                 val sessions = histories.map { it.session }
-                val raw = BalanceCalculator.volumeByGroup(histories)
-                val normalized = BalanceCalculator.normalize(raw)
                 val streak = AchievementService.computeStreak(sessions)
                 val earned = AchievementService.computeAchievements(
                     sessions = sessions,
@@ -115,7 +117,6 @@ class HomeViewModel(
 
                 _uiState.update {
                     it.copy(
-                        balanceByGroup = normalized,
                         streakWeeks = streak,
                         newAchievements = newOnes
                     )
@@ -142,7 +143,34 @@ class HomeViewModel(
     }
 
     fun refresh() {
+        recomputeTargetRadar()
         viewModelScope.launch { refreshPlanAndChecks() }
+    }
+
+    /**
+     * Aktualisiert das Ziel-Radar aus den persistierten KI-Zielwerten und den
+     * aktuellen Geraete-Gewichten. Wird bei Geraete-Aenderungen und beim
+     * Zurueckkehren aus den Einstellungen (refresh) aufgerufen.
+     */
+    private fun recomputeTargetRadar() {
+        val targets = StrengthTargets.fromJson(settingsRepo.targetStrengthJson)
+        if (targets == null) {
+            _uiState.update {
+                it.copy(
+                    targetProgressByGroup = emptyMap(),
+                    hasStrengthTargets = false,
+                    strengthTargetsGeneratedAt = ""
+                )
+            }
+            return
+        }
+        _uiState.update {
+            it.copy(
+                targetProgressByGroup = TargetRadarCalculator.progressByGroup(it.exercises, targets),
+                hasStrengthTargets = true,
+                strengthTargetsGeneratedAt = targets.generatedAt
+            )
+        }
     }
 
     suspend fun refreshPlanAndChecks() {

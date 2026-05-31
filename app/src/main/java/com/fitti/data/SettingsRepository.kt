@@ -36,6 +36,22 @@ class SettingsRepository(context: Context) {
         get() = prefs.getString(KEY_GOAL, "") ?: ""
         set(value) = prefs.edit().putString(KEY_GOAL, value).apply()
 
+    var gender: String
+        get() = prefs.getString(KEY_GENDER, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_GENDER, value).apply()
+
+    var birthDate: String
+        get() = prefs.getString(KEY_BIRTH_DATE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIRTH_DATE, value).apply()
+
+    var bodyType: String
+        get() = prefs.getString(KEY_BODY_TYPE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BODY_TYPE, value).apply()
+
+    var targetStrengthJson: String
+        get() = prefs.getString(KEY_TARGET_STRENGTH, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_TARGET_STRENGTH, value).apply()
+
     var claudeApiKey: String
         get() = prefs.getString(KEY_CLAUDE_API_KEY, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CLAUDE_API_KEY, value).apply()
@@ -83,6 +99,10 @@ class SettingsRepository(context: Context) {
         private const val KEY_PROGRESSION_STEP = "progression_step"
         private const val KEY_HEIGHT_CM = "height_cm"
         private const val KEY_GOAL = "goal"
+        private const val KEY_GENDER = "gender"
+        private const val KEY_BIRTH_DATE = "birth_date"
+        private const val KEY_BODY_TYPE = "body_type"
+        private const val KEY_TARGET_STRENGTH = "target_strength_json"
         private const val KEY_CLAUDE_API_KEY = "claude_api_key"
         private const val KEY_CLAUDE_SONNET_MODEL = "claude_sonnet_model"
         private const val KEY_CLAUDE_OPUS_MODEL = "claude_opus_model"

@@ -594,6 +594,54 @@ class ClaudeApiService(
         }
     }
 
+    /**
+     * Leitet wissenschaftlich fundierte Ziel-Arbeitsgewichte (kg, fuer 8-12 Wdh.)
+     * je Muskelgruppe ab, kalibriert auf das Profil und die konkret vorhandenen
+     * Geraete. Antwort = deutscher Fliesstext + `<targets>`-JSON-Block, geparst
+     * von [StrengthTargetParser].
+     */
+    suspend fun getStrengthTargets(
+        goal: String,
+        gender: String,
+        ageYears: Int?,
+        heightCm: Int,
+        bodyweightKg: Double?,
+        bodyType: String,
+        exercises: List<ExerciseEntity>
+    ): Result<String> {
+        val systemPrompt =
+            "Du bist Sportwissenschaftler und erfahrener Personal Trainer. " +
+                "Bestimme nach anerkannten Standards der Kraft- und Trainingslehre einen realistischen, " +
+                "gesunden Zielzustand fuer einen Klienten, der ausschliesslich an den unten gelisteten " +
+                "Kraftmaschinen im Zirkel trainiert.\n\n" +
+                "Gib pro Muskelgruppe ein Ziel-Arbeitsgewicht in KILOGRAMM an – das Gewicht, mit dem der " +
+                "Klient als Zielzustand 8–12 saubere Wiederholungen auf der wichtigsten Maschine dieser " +
+                "Gruppe schafft. Beruecksichtige Geschlecht, Alter, Koerpergroesse, Koerpergewicht und " +
+                "Koerpertyp sowie die konkreten Maschinen (eine Maschinen-Kraft laesst sich nicht 1:1 mit " +
+                "Langhantel-Standards vergleichen – kalibriere an den aktuellen Gewichten der Geraete). " +
+                "Die Ziele sollen ambitioniert aber sicher erreichbar sein (slow and steady am Optimum, keine Ueberlastung).\n\n" +
+                "Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS, ABS. Verwende ausschliesslich kg.\n\n" +
+                "Antworte zuerst in 3–6 deutschen Saetzen (Einordnung, Schwerpunkte). " +
+                "Haenge danach GENAU EINEN Block in diesem Format an (nur valides JSON, keine Code-Fences):\n" +
+                "<targets>\n" +
+                "{ \"groups\": [ {\"group\":\"CHEST\",\"target_kg\":70,\"rationale\":\"kurze Begruendung\"}, ... ] }\n" +
+                "</targets>"
+
+        val userMessage = buildString {
+            appendLine("=== Mein Profil ===")
+            if (goal.isNotBlank()) appendLine("Ziel: $goal")
+            if (gender.isNotBlank()) appendLine("Geschlecht: $gender")
+            if (ageYears != null) appendLine("Alter: $ageYears Jahre")
+            if (heightCm > 0) appendLine("Größe: $heightCm cm")
+            if (bodyweightKg != null) appendLine("Körpergewicht: ${trimNumber(bodyweightKg)} kg")
+            if (bodyType.isNotBlank()) appendLine("Körpertyp: $bodyType")
+            appendLine()
+            append(formatAvailableExercises(exercises))
+        }
+
+        return callClaude(systemPrompt, userMessage)
+    }
+
     private suspend fun callClaude(systemPrompt: String, userMessage: String): Result<String> =
         withContext(Dispatchers.IO) {
             val started = System.currentTimeMillis()
