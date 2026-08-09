@@ -36,6 +36,10 @@ class SettingsRepository(context: Context) {
         get() = prefs.getString(KEY_GOAL, "") ?: ""
         set(value) = prefs.edit().putString(KEY_GOAL, value).apply()
 
+    var coachPersona: String
+        get() = prefs.getString(KEY_COACH_PERSONA, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_COACH_PERSONA, value).apply()
+
     var gender: String
         get() = prefs.getString(KEY_GENDER, "") ?: ""
         set(value) = prefs.edit().putString(KEY_GENDER, value).apply()
@@ -99,6 +103,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_PROGRESSION_STEP = "progression_step"
         private const val KEY_HEIGHT_CM = "height_cm"
         private const val KEY_GOAL = "goal"
+        private const val KEY_COACH_PERSONA = "coach_persona"
         private const val KEY_GENDER = "gender"
         private const val KEY_BIRTH_DATE = "birth_date"
         private const val KEY_BODY_TYPE = "body_type"

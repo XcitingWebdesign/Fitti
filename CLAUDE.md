@@ -83,6 +83,7 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 - Sitz- und Polsterposition pro Geraet (seatPosition/padPosition, Anzeige im Training als S/P)
 - Nautilus Gewichtsstufen-Stack pro Geraet (weightSteps, automatische naechste Stufe bei Progression)
 - Angenehmer Dreiklang-Sound bei Timer-Ende (ToneGenerator statt System-Notification)
+- Coach-Charakter als Freitext-Prompt in Einstellungen (fliesst in alle KI-System-Prompts ein, Formatregeln behalten Vorrang)
 
 ## Bekannte TODOs
 - Detailliertere KI-Trainingsanalyse (Trends ueber mehrere Wochen)

@@ -124,6 +124,7 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     var goal by remember { mutableStateOf(settingsRepo.goal) }
+    var coachPersona by remember { mutableStateOf(settingsRepo.coachPersona) }
     var apiKey by remember { mutableStateOf(settingsRepo.claudeApiKey) }
     var sonnetModel by remember { mutableStateOf(settingsRepo.claudeSonnetModel) }
     var opusModel by remember { mutableStateOf(settingsRepo.claudeOpusModel) }
@@ -414,7 +415,8 @@ fun SettingsScreen(
                             val service = ClaudeApiService(
                                 apiKey = settingsRepo.claudeApiKey,
                                 sonnetModel = settingsRepo.claudeSonnetModel,
-                                opusModel = settingsRepo.claudeOpusModel
+                                opusModel = settingsRepo.claudeOpusModel,
+                                coachPersona = settingsRepo.coachPersona
                             )
                             val allExercises = exerciseRepo.getAllEntities()
                             val bw = weightKg.replace(",", ".").toDoubleOrNull()
@@ -965,6 +967,20 @@ fun SettingsScreen(
 
             item {
                 OutlinedTextField(
+                    value = coachPersona,
+                    onValueChange = { coachPersona = it },
+                    label = { Text("Coach-Charakter (frei formuliert)") },
+                    placeholder = { Text("z.B. Motivierender Drill-Sergeant mit Humor") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false,
+                    minLines = 3,
+                    maxLines = 6,
+                    supportingText = { Text("Optional. Bestimmt Ton und Pers\u00f6nlichkeit des KI-Coaches.") }
+                )
+            }
+
+            item {
+                OutlinedTextField(
                     value = apiKey,
                     onValueChange = { apiKey = it },
                     label = { Text("Claude API-Schl\u00fcssel") },
@@ -1011,6 +1027,7 @@ fun SettingsScreen(
                         val validStep = progressionStep.replace(",", ".").toDoubleOrNull()?.coerceIn(0.5, 20.0) ?: 2.5
 
                         settingsRepo.goal = goal
+                        settingsRepo.coachPersona = coachPersona.trim()
                         settingsRepo.heightCm = heightCm.toIntOrNull()?.coerceIn(0, 300) ?: 0
                         settingsRepo.claudeApiKey = apiKey.trim()
                         settingsRepo.claudeSonnetModel = sonnetModel.trim()
@@ -1503,6 +1520,7 @@ private suspend fun exportFullBackup(
     settings.put("progressionStepKg", settingsRepo.progressionStepKg)
     settings.put("heightCm", settingsRepo.heightCm)
     settings.put("goal", settingsRepo.goal)
+    settings.put("coachPersona", settingsRepo.coachPersona)
     root.put("settings", settings)
 
     // Exercises
@@ -1681,6 +1699,7 @@ private suspend fun importFullBackup(
         settingsRepo.progressionStepKg = settings.optDouble("progressionStepKg", 2.5)
         settingsRepo.heightCm = settings.optInt("heightCm", 0)
         settingsRepo.goal = settings.optString("goal", "")
+        settingsRepo.coachPersona = settings.optString("coachPersona", "")
     }
 
     // Clear existing data (order matters for foreign keys)
