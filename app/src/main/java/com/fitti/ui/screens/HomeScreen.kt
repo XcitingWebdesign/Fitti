@@ -438,6 +438,7 @@ private fun HomeScreenContent(
                                         apiKey = settingsRepo.claudeApiKey,
                                         sonnetModel = settingsRepo.claudeSonnetModel,
                                         opusModel = settingsRepo.claudeOpusModel,
+                                        coachPersona = settingsRepo.coachPersona,
                                     )
                                     service.getWeeklyCoaching(
                                         sessions = recentHistories,

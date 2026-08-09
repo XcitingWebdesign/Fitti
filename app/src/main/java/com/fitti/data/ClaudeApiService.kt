@@ -12,7 +12,17 @@ class ClaudeApiService(
     private val apiKey: String,
     private val sonnetModel: String = SettingsRepository.DEFAULT_SONNET_MODEL,
     private val opusModel: String = SettingsRepository.DEFAULT_OPUS_MODEL,
+    private val coachPersona: String = "",
 ) {
+
+    // Persona nur als Tonalitaet anhaengen – inhaltliche und Format-Regeln
+    // (z.B. der <plan>-Block) behalten explizit Vorrang.
+    private fun withPersona(systemPrompt: String): String {
+        if (coachPersona.isBlank()) return systemPrompt
+        return systemPrompt + "\n\nCHARAKTER/TONALIT\u00c4T DES COACHES (vom Klienten vorgegeben): " +
+                "Sprich in folgendem Stil, ohne die inhaltlichen und formalen Regeln oben zu verletzen:\n" +
+                coachPersona
+    }
 
     suspend fun getWorkoutFeedback(
         history: WorkoutSessionHistory,
@@ -60,7 +70,7 @@ class ClaudeApiService(
             appendLine(formatProfile(userGoal, latestWeightKg, heightCm))
         }
 
-        return callClaude(systemPrompt, userMessage)
+        return callClaude(withPersona(systemPrompt), userMessage)
     }
 
     suspend fun getWeeklyAnalysis(
@@ -114,7 +124,7 @@ class ClaudeApiService(
             appendLine(formatProfile(userGoal, latestWeightKg, heightCm))
         }
 
-        return callClaude(systemPrompt, userMessage)
+        return callClaude(withPersona(systemPrompt), userMessage)
     }
 
     private fun formatProfile(userGoal: String, latestWeightKg: Double?, heightCm: Int): String = buildString {
@@ -486,7 +496,7 @@ class ClaudeApiService(
             }
         }
 
-        return callClaudeWithThinking(systemPrompt, userMessage)
+        return callClaudeWithThinking(withPersona(systemPrompt), userMessage)
     }
 
     /**
@@ -642,7 +652,7 @@ class ClaudeApiService(
         // Hoeheres Token-Budget: Fliesstext + JSON-Block fuer bis zu 6 Gruppen
         // (je mit Begruendung) passt nicht zuverlaessig in 1024 Tokens – sonst
         // wird die Antwort vor </targets> abgeschnitten und nicht parsebar.
-        return callClaude(systemPrompt, userMessage, maxTokens = 2048)
+        return callClaude(withPersona(systemPrompt), userMessage, maxTokens = 2048)
     }
 
     private suspend fun callClaude(

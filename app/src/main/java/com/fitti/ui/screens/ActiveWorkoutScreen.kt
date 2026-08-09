@@ -829,6 +829,7 @@ private fun WorkoutSummaryContent(
                                 apiKey = settingsRepo.claudeApiKey,
                                 sonnetModel = settingsRepo.claudeSonnetModel,
                                 opusModel = settingsRepo.claudeOpusModel,
+                                coachPersona = settingsRepo.coachPersona,
                             )
                             service.getWorkoutFeedback(
                                 history = history,
