@@ -13,22 +13,30 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -151,86 +161,100 @@ fun MealEntryDialog(
         onDismissRequest = onDismiss,
         title = { Text("Mahlzeit loggen") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = description,
-                        onValueChange = { description = it },
-                        label = { Text("Was hast du gegessen?") },
-                        placeholder = { Text("z.B. 4 EL Haferflocken, 1 EL Mandelmus") },
-                        modifier = Modifier.weight(1f),
-                        minLines = 2
-                    )
-                    IconButton(onClick = {
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                            )
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Mahlzeit beschreiben")
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Freitext mit Mikrofon direkt im Feld – Diktat ist der
+                // schnellste Weg, eine Mahlzeit unterwegs zu erfassen.
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Was hast du gegessen?") },
+                    placeholder = { Text("z.B. 4 EL Haferflocken, 1 EL Mandelmus") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(
+                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                )
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Mahlzeit beschreiben")
+                            }
+                            try {
+                                speechLauncher.launch(intent)
+                            } catch (_: Exception) {
+                                error = "Keine Spracheingabe verfügbar – Tastatur-Diktat nutzen."
+                            }
+                        }) {
+                            Text("🎤", fontSize = 20.sp)
                         }
-                        try {
-                            speechLauncher.launch(intent)
-                        } catch (_: Exception) {
-                            error = "Keine Spracheingabe verfügbar – Tastatur-Diktat nutzen."
-                        }
-                    }) {
-                        Text("🎤", fontSize = 20.sp)
                     }
-                }
+                )
 
                 if (hasApiKey) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                if (!isLoading && description.isNotBlank()) {
-                                    isLoading = true
-                                    error = null
-                                    scope.launch {
-                                        applyEstimateResult(
-                                            estimateFromText(description),
-                                            MealLogEntity.SOURCE_AI_TEXT
-                                        )
-                                    }
+                    // Primaeraktion voll breit, Foto-Wege darunter gleichrangig:
+                    // drei gleich breite Buttons brechen den Text sonst um.
+                    FilledTonalButton(
+                        onClick = {
+                            if (!isLoading && description.isNotBlank()) {
+                                isLoading = true
+                                error = null
+                                scope.launch {
+                                    applyEstimateResult(
+                                        estimateFromText(description),
+                                        MealLogEntity.SOURCE_AI_TEXT
+                                    )
                                 }
-                            },
-                            enabled = !isLoading && description.isNotBlank(),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Schätzen")
-                        }
+                            }
+                        },
+                        enabled = !isLoading && description.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Protein schätzen", maxLines = 1)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = { if (!isLoading) cameraLauncher.launch(null) },
                             enabled = !isLoading,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("📷 Foto")
+                            Text("📷 Kamera", maxLines = 1, softWrap = false)
                         }
                         OutlinedButton(
                             onClick = { if (!isLoading) galleryLauncher.launch("image/*") },
                             enabled = !isLoading,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Galerie")
+                            Text("🖼 Galerie", maxLines = 1, softWrap = false)
                         }
                     }
+                } else {
+                    Text(
+                        text = "Für die KI-Schätzung einen Claude API-Key in den " +
+                            "Einstellungen hinterlegen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 if (isLoading) {
-                    Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(10.dp))
                         Text(
                             "Schätzung läuft...",
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
                 error?.let {
-                    Spacer(Modifier.height(8.dp))
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodySmall,
@@ -238,59 +262,46 @@ fun MealEntryDialog(
                     )
                 }
 
-                estimate?.let { est ->
-                    Spacer(Modifier.height(8.dp))
-                    est.items.forEach { item ->
-                        Text(
-                            text = "${item.name}: ${formatGrams(item.proteinG)} g",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (est.note.isNotBlank()) {
-                        Text(
-                            text = est.note,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                estimate?.let { est -> EstimateBreakdown(est) }
 
-                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = gramsText,
                     onValueChange = { gramsText = it },
-                    label = { Text("Protein (g)") },
+                    label = { Text("Protein") },
+                    suffix = { Text("g") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 if (recentMeals.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = "Zuletzt gegessen",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        recentMeals.forEach { meal ->
-                            OutlinedButton(onClick = {
-                                description = meal.description
-                                gramsText = formatGrams(meal.proteinGrams)
-                                source = MealLogEntity.SOURCE_MANUAL
-                                estimate = null
-                                error = null
-                            }) {
-                                Text(
-                                    text = "${meal.description.take(24)} (${formatGrams(meal.proteinGrams)} g)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Zuletzt gegessen",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            recentMeals.forEach { meal ->
+                                SuggestionChip(
+                                    onClick = {
+                                        description = meal.description
+                                        gramsText = formatGrams(meal.proteinGrams)
+                                        source = MealLogEntity.SOURCE_MANUAL
+                                        estimate = null
+                                        error = null
+                                    },
+                                    label = {
+                                        Text(
+                                            text = "${meal.description} · ${formatGrams(meal.proteinGrams)} g",
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    modifier = Modifier.widthIn(max = 220.dp)
                                 )
                             }
                         }
@@ -319,6 +330,81 @@ fun MealEntryDialog(
             }
         }
     )
+}
+
+/**
+ * Zeigt die KI-Schaetzung als abgesetzte Karte: Bestandteile mit Gramm rechts,
+ * darunter die Summe und – falls vorhanden – die Annahme des Modells.
+ */
+@Composable
+private fun EstimateBreakdown(estimate: ProteinEstimate) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "KI-Schätzung",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            estimate.items.forEach { item ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = item.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "${formatGrams(item.proteinG)} g",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+            if (estimate.items.isNotEmpty()) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Gesamt",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        text = "${formatGrams(estimate.totalProteinG)} g",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+            if (estimate.note.isNotBlank()) {
+                Text(
+                    text = estimate.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontStyle = FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
 }
 
 /** Ganze Gramm ohne Nachkommastelle, sonst eine Nachkommastelle. */

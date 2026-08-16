@@ -29,6 +29,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -953,7 +955,21 @@ private fun ProteinCard(
                     progress = {
                         (todayProteinGrams / proteinGoalGrams).toFloat().coerceIn(0f, 1f)
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    strokeCap = StrokeCap.Round,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                )
+                Spacer(Modifier.height(6.dp))
+                val remaining = proteinGoalGrams - todayProteinGrams
+                Text(
+                    text = if (remaining > 0) {
+                        "Noch ${formatGrams(remaining)} g bis zum Ziel"
+                    } else {
+                        "Tagesziel erreicht"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
                 Spacer(Modifier.height(4.dp))
@@ -985,10 +1001,13 @@ private fun ProteinCard(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        IconButton(onClick = { onDeleteMeal(meal) }) {
+                        IconButton(
+                            onClick = { onDeleteMeal(meal) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
                             Text(
                                 text = "✕",
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -996,22 +1015,23 @@ private fun ProteinCard(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
+                FilledTonalButton(
                     onClick = onAddMealClick,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("+ Mahlzeit")
+                    Text("+ Mahlzeit", maxLines = 1)
                 }
                 // Fallback ohne geloggte Mahlzeiten: Tages-Toggle wie bisher
                 if (todayMeals.isEmpty() && proteinGoalGrams > 0) {
                     OutlinedButton(
                         onClick = onToggleProtein,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
                         val mark = if (proteinHitToday) "✓" else "✕"
-                        Text("Ziel erreicht $mark")
+                        Text("Ziel erreicht $mark", maxLines = 1, softWrap = false)
                     }
                 }
             }
