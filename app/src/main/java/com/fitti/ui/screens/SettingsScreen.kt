@@ -118,6 +118,7 @@ fun SettingsScreen(
     coachingPlanDao: com.fitti.data.CoachingPlanDao,
     nutritionLogDao: com.fitti.data.NutritionLogDao,
     bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
+    mealLogDao: com.fitti.data.MealLogDao,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -129,6 +130,7 @@ fun SettingsScreen(
     var sonnetModel by remember { mutableStateOf(settingsRepo.claudeSonnetModel) }
     var opusModel by remember { mutableStateOf(settingsRepo.claudeOpusModel) }
     var heightCm by remember { mutableStateOf(settingsRepo.heightCm.let { if (it == 0) "" else it.toString() }) }
+    var proteinGoal by remember { mutableStateOf(settingsRepo.proteinGoalGrams.let { if (it == 0) "" else it.toString() }) }
     var weightKg by remember { mutableStateOf("") }
     var repsMin by remember { mutableStateOf(settingsRepo.repsMin.toString()) }
     var repsMax by remember { mutableStateOf(settingsRepo.repsMax.toString()) }
@@ -297,6 +299,20 @@ fun SettingsScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
+                )
+            }
+
+            item {
+                OutlinedTextField(
+                    value = proteinGoal,
+                    onValueChange = { proteinGoal = it },
+                    label = { Text("Protein-Ziel (g/Tag)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    supportingText = {
+                        Text("Ein aktiver Coaching-Plan überschreibt dieses Ziel.")
+                    }
                 )
             }
 
@@ -882,7 +898,7 @@ fun SettingsScreen(
                                 val json = exportFullBackup(
                                     exerciseRepo, workoutSessionDao, weightLogDao,
                                     coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
-                                    settingsRepo
+                                    mealLogDao, settingsRepo
                                 )
                                 shareText(context, json, "fitti_backup_${
                                     SimpleDateFormat("yyyyMMdd", Locale.GERMANY).format(Date())
@@ -1029,6 +1045,7 @@ fun SettingsScreen(
                         settingsRepo.goal = goal
                         settingsRepo.coachPersona = coachPersona.trim()
                         settingsRepo.heightCm = heightCm.toIntOrNull()?.coerceIn(0, 300) ?: 0
+                        settingsRepo.proteinGoalGrams = proteinGoal.toIntOrNull()?.coerceIn(0, 500) ?: 0
                         settingsRepo.claudeApiKey = apiKey.trim()
                         settingsRepo.claudeSonnetModel = sonnetModel.trim()
                             .ifBlank { SettingsRepository.DEFAULT_SONNET_MODEL }
@@ -1163,7 +1180,7 @@ fun SettingsScreen(
                                 val count = importFullBackup(
                                     json, exerciseRepo, workoutSessionDao, weightLogDao,
                                     coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
-                                    settingsRepo
+                                    mealLogDao, settingsRepo
                                 )
                                 backupMessage = "Backup wiederhergestellt ($count Trainings)"
                             } catch (e: Exception) {
@@ -1504,6 +1521,7 @@ private suspend fun exportFullBackup(
     coachingPlanDao: com.fitti.data.CoachingPlanDao,
     nutritionLogDao: com.fitti.data.NutritionLogDao,
     bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
+    mealLogDao: com.fitti.data.MealLogDao,
     settingsRepo: SettingsRepository
 ): String = withContext(Dispatchers.IO) {
     val root = JSONObject()
@@ -1521,6 +1539,7 @@ private suspend fun exportFullBackup(
     settings.put("heightCm", settingsRepo.heightCm)
     settings.put("goal", settingsRepo.goal)
     settings.put("coachPersona", settingsRepo.coachPersona)
+    settings.put("proteinGoalGrams", settingsRepo.proteinGoalGrams)
     root.put("settings", settings)
 
     // Exercises
@@ -1659,6 +1678,21 @@ private suspend fun exportFullBackup(
     }
     root.put("nutritionLogs", nutritionArr)
 
+    // Meal logs
+    val mealLogs = mealLogDao.getAll()
+    val mealArr = JSONArray()
+    for (m in mealLogs) {
+        val obj = JSONObject()
+        obj.put("id", m.id)
+        obj.put("date", m.date)
+        obj.put("timestamp", m.timestamp)
+        obj.put("description", m.description)
+        obj.put("proteinGrams", m.proteinGrams)
+        obj.put("source", m.source)
+        mealArr.put(obj)
+    }
+    root.put("mealLogs", mealArr)
+
     // Body measurements
     val measurements = bodyMeasurementDao.getAll()
     val measurementsArr = JSONArray()
@@ -1684,6 +1718,7 @@ private suspend fun importFullBackup(
     coachingPlanDao: com.fitti.data.CoachingPlanDao,
     nutritionLogDao: com.fitti.data.NutritionLogDao,
     bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
+    mealLogDao: com.fitti.data.MealLogDao,
     settingsRepo: SettingsRepository
 ): Int = withContext(Dispatchers.IO) {
     val root = JSONObject(json)
@@ -1700,6 +1735,7 @@ private suspend fun importFullBackup(
         settingsRepo.heightCm = settings.optInt("heightCm", 0)
         settingsRepo.goal = settings.optString("goal", "")
         settingsRepo.coachPersona = settings.optString("coachPersona", "")
+        settingsRepo.proteinGoalGrams = settings.optInt("proteinGoalGrams", 0)
     }
 
     // Clear existing data (order matters for foreign keys)
@@ -1711,6 +1747,7 @@ private suspend fun importFullBackup(
     coachingPlanDao.deleteAllPlans()
     nutritionLogDao.deleteAll()
     bodyMeasurementDao.deleteAll()
+    mealLogDao.deleteAll()
 
     // Import exercises
     val exercisesArr = root.getJSONArray("exercises")
@@ -1876,6 +1913,26 @@ private suspend fun importFullBackup(
             )
         }
         nutritionLogDao.insertAll(logs)
+    }
+
+    // Import meal logs
+    val mealArr = root.optJSONArray("mealLogs")
+    if (mealArr != null) {
+        val meals = mutableListOf<com.fitti.data.MealLogEntity>()
+        for (i in 0 until mealArr.length()) {
+            val obj = mealArr.getJSONObject(i)
+            meals.add(
+                com.fitti.data.MealLogEntity(
+                    id = obj.getLong("id"),
+                    date = obj.getString("date"),
+                    timestamp = obj.optLong("timestamp", 0L),
+                    description = obj.optString("description", ""),
+                    proteinGrams = obj.optDouble("proteinGrams", 0.0),
+                    source = obj.optString("source", com.fitti.data.MealLogEntity.SOURCE_MANUAL)
+                )
+            )
+        }
+        mealLogDao.insertAll(meals)
     }
 
     // Import body measurements

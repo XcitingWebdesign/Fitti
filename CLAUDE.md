@@ -18,11 +18,13 @@ APK Output: `app/build/outputs/apk/debug/app-debug.apk`
 com.fitti/
   MainActivity.kt          # NavHost mit 4 Routes
   data/                     # Room Entities, DAOs, Repositories
-    FittiDatabase.kt        # Version 5, Migrationen 1->2->3->4->5
+    FittiDatabase.kt        # Version 12, Migrationen 1->2->...->12
     ExerciseEntity.kt       # 8 Nautilus-Maschinen (Seed-Daten, inkl. F6 Ab Crunch)
     SessionExerciseEntity.kt # Soll-Snapshot pro Training
     SetLogEntity.kt         # Ist-Werte pro Satz
     WeightLogEntity.kt      # Koerpergewicht-Zeitreihe
+    MealLogEntity.kt        # Mahlzeiten mit Proteingehalt (pro-Mahlzeit-Tracking)
+    ProteinEstimateParser.kt # Toleranter Parser fuer <protein>-JSON aus Claude-Antworten
     SettingsRepository.kt   # SharedPreferences fuer Defaults
   domain/
     Exercise.kt             # Domain-Modell
@@ -39,7 +41,7 @@ com.fitti/
 ```
 
 ## Datenbank
-- Room SQLite, Version 5, offline-first
+- Room SQLite, Version 12, offline-first
 - Snapshot-Pattern: SessionExercise friert Planwerte beim Start ein
 - Set-Logs sind nach Session-Abschluss read-only
 
@@ -84,6 +86,7 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 - Nautilus Gewichtsstufen-Stack pro Geraet (weightSteps, automatische naechste Stufe bei Progression)
 - Angenehmer Dreiklang-Sound bei Timer-Ende (ToneGenerator statt System-Notification)
 - Coach-Charakter als Freitext-Prompt in Einstellungen (fliesst in alle KI-System-Prompts ein, Formatregeln behalten Vorrang)
+- Protein-Tracking pro Mahlzeit: Tagesziel in Gramm (Einstellungen, Coaching-Plan hat Vorrang), ProteinCard auf Home mit Fortschrittsbalken, MealEntryDialog mit Freitext (inkl. Spracheingabe via RecognizerIntent), Foto (Kamera/Galerie, ohne CAMERA-Permission) und KI-Schaetzung via Claude (<protein>-JSON-Block, ProteinEstimateParser); Schnell-Wiederholung letzter Mahlzeiten; proteinHit-Boolean wird aus der Tagessumme abgeleitet (Coaching/Statistik unveraendert)
 
 ## Bekannte TODOs
 - Detailliertere KI-Trainingsanalyse (Trends ueber mehrere Wochen)

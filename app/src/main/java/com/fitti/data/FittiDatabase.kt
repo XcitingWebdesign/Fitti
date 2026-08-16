@@ -18,9 +18,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CoachingPlanEntity::class,
         CoachingPlanExerciseTargetEntity::class,
         NutritionLogEntity::class,
-        BodyMeasurementEntity::class
+        BodyMeasurementEntity::class,
+        MealLogEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class FittiDatabase : RoomDatabase() {
@@ -31,6 +32,7 @@ abstract class FittiDatabase : RoomDatabase() {
     abstract fun coachingPlanDao(): CoachingPlanDao
     abstract fun nutritionLogDao(): NutritionLogDao
     abstract fun bodyMeasurementDao(): BodyMeasurementDao
+    abstract fun mealLogDao(): MealLogDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -259,12 +261,31 @@ abstract class FittiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Protein-Tracking pro Mahlzeit (Freitext/Foto + KI-Schaetzung)
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `meal_logs` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `proteinGrams` REAL NOT NULL,
+                        `source` TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_meal_logs_date` ON `meal_logs` (`date`)")
+            }
+        }
+
         fun create(context: Context): FittiDatabase =
             Room.databaseBuilder(context, FittiDatabase::class.java, "fitti.db")
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
                     MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
-                    MIGRATION_9_10, MIGRATION_10_11
+                    MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12
                 )
                 .build()
     }

@@ -655,9 +655,49 @@ class ClaudeApiService(
         return callClaude(withPersona(systemPrompt), userMessage, maxTokens = 2048)
     }
 
+    /**
+     * Schaetzt den Proteingehalt einer frei beschriebenen Mahlzeit
+     * (z.B. "4 EL Haferflocken und 1 EL Mandelmus"). Antwort = kurzer
+     * deutscher Text + `<protein>`-JSON-Block, geparst von [ProteinEstimateParser].
+     */
+    suspend fun estimateProteinFromText(description: String): Result<String> {
+        val userMessage = "Meine Mahlzeit: $description"
+        // Bewusst ohne withPersona(): nuechterne Schaetzung, kein Coach-Ton.
+        return callClaude(PROTEIN_SYSTEM_PROMPT, userMessage)
+    }
+
+    /**
+     * Schaetzt den Proteingehalt einer fotografierten Mahlzeit.
+     * @param base64Jpeg JPEG-Bilddaten als Base64 (ohne Zeilenumbrueche).
+     * @param hint optionale Zusatzbeschreibung des Users.
+     */
+    suspend fun estimateProteinFromImage(base64Jpeg: String, hint: String? = null): Result<String> {
+        val textPrompt = buildString {
+            append("Schätze den Proteingehalt der abgebildeten Mahlzeit.")
+            if (!hint.isNullOrBlank()) append(" Zusatzinfo: $hint")
+        }
+        val content = JSONArray()
+            .put(JSONObject().apply {
+                put("type", "image")
+                put("source", JSONObject().apply {
+                    put("type", "base64")
+                    put("media_type", "image/jpeg")
+                    put("data", base64Jpeg)
+                })
+            })
+            .put(JSONObject().apply {
+                put("type", "text")
+                put("text", textPrompt)
+            })
+        return callClaude(PROTEIN_SYSTEM_PROMPT, content)
+    }
+
+    // userContent ist entweder ein String (reiner Text) oder ein JSONArray aus
+    // Content-Blocks (z.B. Bild + Text fuer die Foto-Schaetzung) – org.json
+    // serialisiert beides korrekt in das "content"-Feld.
     private suspend fun callClaude(
         systemPrompt: String,
-        userMessage: String,
+        userContent: Any,
         maxTokens: Int = 1024
     ): Result<String> =
         withContext(Dispatchers.IO) {
@@ -682,7 +722,7 @@ class ClaudeApiService(
                         put("messages", JSONArray().put(
                             JSONObject().apply {
                                 put("role", "user")
-                                put("content", userMessage)
+                                put("content", userContent)
                             }
                         ))
                     }
@@ -790,5 +830,22 @@ class ClaudeApiService(
         val cls = e.javaClass.simpleName
         val cause = e.cause?.javaClass?.simpleName?.let { " (cause: $it)" } ?: ""
         return Exception("$cls$cause @$phase nach ${ms}ms: ${e.message}", e)
+    }
+
+    companion object {
+        private val PROTEIN_SYSTEM_PROMPT =
+            "Du bist Ernährungswissenschaftler. Schätze den Proteingehalt (in Gramm) der " +
+                "beschriebenen bzw. fotografierten Mahlzeit.\n\n" +
+                "Regeln:\n" +
+                "- Nutze übliche deutsche Portionsgrößen (EL = gehäufter Esslöffel, TL, " +
+                "Scheibe, Handvoll, Glas, Becher).\n" +
+                "- Sei realistisch; bei Unsicherheit konservativ schätzen und die Annahme nennen.\n" +
+                "- Zerlege die Mahlzeit in einzelne Bestandteile mit jeweils eigener Schätzung.\n\n" +
+                "Antworte zuerst in 1–2 kurzen deutschen Sätzen (wichtigste Annahmen). " +
+                "Hänge danach GENAU EINEN Block in diesem Format an (nur valides JSON, keine Code-Fences):\n" +
+                "<protein>\n" +
+                "{ \"items\": [ {\"name\":\"Haferflocken 4 EL\",\"protein_g\":5.4} ], " +
+                "\"total_protein_g\": 8.1, \"note\": \"kurze Annahme\" }\n" +
+                "</protein>"
     }
 }

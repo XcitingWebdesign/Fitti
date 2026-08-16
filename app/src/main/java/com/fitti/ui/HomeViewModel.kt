@@ -8,6 +8,8 @@ import com.fitti.data.BodyMeasurementEntity
 import com.fitti.data.CoachingPlanDao
 import com.fitti.data.CoachingPlanWithTargets
 import com.fitti.data.ExerciseRepository
+import com.fitti.data.MealLogDao
+import com.fitti.data.MealLogEntity
 import com.fitti.data.NutritionLogDao
 import com.fitti.data.NutritionLogEntity
 import com.fitti.data.SettingsRepository
@@ -56,6 +58,10 @@ data class HomeUiState(
     val proteinDaysHitThisWeek: Int = 0,
     val sessionsThisWeek: Int = 0,
     val proteinHitToday: Boolean = false,
+    val todayMeals: List<MealLogEntity> = emptyList(),
+    val todayProteinGrams: Double = 0.0,
+    val proteinGoalGrams: Int = 0,
+    val recentMeals: List<MealLogEntity> = emptyList(),
     val measurementsDueDays: Int? = null,
     val latestMeasurement: BodyMeasurementEntity? = null,
     val isLoading: Boolean = true
@@ -71,6 +77,7 @@ class HomeViewModel(
     private val coachingPlanDao: CoachingPlanDao,
     private val nutritionLogDao: NutritionLogDao,
     private val bodyMeasurementDao: BodyMeasurementDao,
+    private val mealLogDao: MealLogDao,
     private val startWorkoutSessionUseCase: StartWorkoutSessionUseCase
 ) : ViewModel() {
 
@@ -181,6 +188,11 @@ class HomeViewModel(
         val proteinDays = recentLogs.count { it.proteinHit }
         val proteinHitToday = recentLogs.firstOrNull { it.date == today }?.proteinHit == true
 
+        val todayMeals = mealLogDao.getForDate(today)
+        val todayProteinGrams = todayMeals.sumOf { it.proteinGrams }
+        val recentMeals = mealLogDao.getRecentDistinct(RECENT_MEALS_LIMIT)
+        val proteinGoal = effectiveProteinGoal(plan)
+
         val sessionsThisWeek = _uiState.value.recentSessions.count { session ->
             val completedAt = session.completedAt ?: return@count false
             val date = parseDateTime(completedAt) ?: return@count false
@@ -199,10 +211,71 @@ class HomeViewModel(
                 proteinDaysHitThisWeek = proteinDays,
                 proteinHitToday = proteinHitToday,
                 sessionsThisWeek = sessionsThisWeek,
+                todayMeals = todayMeals,
+                todayProteinGrams = todayProteinGrams,
+                proteinGoalGrams = proteinGoal,
+                recentMeals = recentMeals,
                 latestMeasurement = latestMeasurement,
                 measurementsDueDays = measurementsDueDays
             )
         }
+    }
+
+    // Effektives Tagesziel: aktiver Coaching-Plan hat Vorrang vor dem
+    // manuell in den Einstellungen gesetzten Ziel.
+    private fun effectiveProteinGoal(plan: CoachingPlanWithTargets?): Int {
+        val planGoal = plan?.plan?.weeklyProteinG ?: 0
+        return if (planGoal > 0) planGoal else settingsRepo.proteinGoalGrams
+    }
+
+    fun addMeal(description: String, proteinGrams: Double, source: String) {
+        viewModelScope.launch {
+            val now = Date()
+            mealLogDao.insert(
+                MealLogEntity(
+                    date = isoDate(now),
+                    timestamp = now.time,
+                    description = description.trim(),
+                    proteinGrams = proteinGrams,
+                    source = source
+                )
+            )
+            recomputeProteinHit()
+            refreshPlanAndChecks()
+        }
+    }
+
+    fun deleteMeal(meal: MealLogEntity) {
+        viewModelScope.launch {
+            mealLogDao.delete(meal)
+            recomputeProteinHit()
+            refreshPlanAndChecks()
+        }
+    }
+
+    /**
+     * Leitet den bisherigen proteinHit-Boolean aus der Tagessumme ab, damit
+     * Wochenstatistik, Coaching-Prompts und Erinnerung weiterfunktionieren.
+     * Nur wenn heute Mahlzeiten geloggt sind – ohne Mahlzeiten bleibt der
+     * manuelle Toggle die Quelle.
+     */
+    private suspend fun recomputeProteinHit() {
+        val today = isoDate(Date())
+        val meals = mealLogDao.getForDate(today)
+        if (meals.isEmpty()) return
+        val goal = effectiveProteinGoal(coachingPlanDao.getLatest())
+        if (goal <= 0) return
+        val hit = meals.sumOf { it.proteinGrams } >= goal
+        val existing = nutritionLogDao.getForDate(today)
+        if (existing?.proteinHit == hit) return
+        nutritionLogDao.insert(
+            NutritionLogEntity(
+                id = existing?.id ?: 0L,
+                date = today,
+                proteinHit = hit,
+                weightKg = existing?.weightKg
+            )
+        )
     }
 
     fun toggleProteinHitToday() {
@@ -366,6 +439,10 @@ class HomeViewModel(
         val date = parseDateTime(dateStr) ?: return true
         return daysSince(date) >= WEIGHT_LOG_INTERVAL_DAYS
     }
+
+    companion object {
+        private const val RECENT_MEALS_LIMIT = 6
+    }
 }
 
 class HomeViewModelFactory(
@@ -375,7 +452,8 @@ class HomeViewModelFactory(
     private val weightLogDao: WeightLogDao,
     private val coachingPlanDao: CoachingPlanDao,
     private val nutritionLogDao: NutritionLogDao,
-    private val bodyMeasurementDao: BodyMeasurementDao
+    private val bodyMeasurementDao: BodyMeasurementDao,
+    private val mealLogDao: MealLogDao
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -387,6 +465,7 @@ class HomeViewModelFactory(
             coachingPlanDao = coachingPlanDao,
             nutritionLogDao = nutritionLogDao,
             bodyMeasurementDao = bodyMeasurementDao,
+            mealLogDao = mealLogDao,
             startWorkoutSessionUseCase = StartWorkoutSessionUseCase(workoutRepo, settingsRepo)
         ) as T
     }

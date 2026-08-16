@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
         val coachingPlanDao = database.coachingPlanDao()
         val nutritionLogDao = database.nutritionLogDao()
         val bodyMeasurementDao = database.bodyMeasurementDao()
+        val mealLogDao = database.mealLogDao()
 
         com.fitti.notifications.NotificationScheduler.applyAll(applicationContext, settingsRepo)
 
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
                             coachingPlanDao = coachingPlanDao,
                             nutritionLogDao = nutritionLogDao,
                             bodyMeasurementDao = bodyMeasurementDao,
+                            mealLogDao = mealLogDao,
                             onStartWorkout = { sessionId ->
                                 navController.navigate("workout/$sessionId") {
                                     launchSingleTop = true
@@ -125,6 +127,7 @@ class MainActivity : ComponentActivity() {
                             coachingPlanDao = coachingPlanDao,
                             nutritionLogDao = nutritionLogDao,
                             bodyMeasurementDao = bodyMeasurementDao,
+                            mealLogDao = mealLogDao,
                             onBack = { navController.popBackStack() }
                         )
                     }

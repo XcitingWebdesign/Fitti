@@ -68,6 +68,8 @@ import com.fitti.data.CoachingPlanDao
 import com.fitti.data.CoachingPlanParser
 import com.fitti.data.CoachingPlanWithTargets
 import com.fitti.data.ExerciseRepository
+import com.fitti.data.MealLogDao
+import com.fitti.data.MealLogEntity
 import com.fitti.data.NutritionLogDao
 import com.fitti.data.SettingsRepository
 import com.fitti.data.WeightLogDao
@@ -83,8 +85,11 @@ import java.util.Calendar
 import java.util.Date
 
 import com.fitti.domain.Achievement
+import androidx.compose.material3.LinearProgressIndicator
 import com.fitti.ui.common.BalanceRadar
+import com.fitti.ui.common.MealEntryDialog
 import com.fitti.ui.common.formatDateTime
+import com.fitti.ui.common.formatGrams
 import com.fitti.ui.common.WeightChart
 import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.MarkdownText
@@ -102,6 +107,7 @@ fun HomeScreen(
     coachingPlanDao: CoachingPlanDao,
     nutritionLogDao: NutritionLogDao,
     bodyMeasurementDao: BodyMeasurementDao,
+    mealLogDao: MealLogDao,
     onStartWorkout: (Long) -> Unit,
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit,
@@ -110,7 +116,7 @@ fun HomeScreen(
     val vm: HomeViewModel = viewModel(
         factory = HomeViewModelFactory(
             exerciseRepo, workoutRepo, settingsRepo, weightLogDao,
-            coachingPlanDao, nutritionLogDao, bodyMeasurementDao
+            coachingPlanDao, nutritionLogDao, bodyMeasurementDao, mealLogDao
         )
     )
     val state by vm.uiState.collectAsState()
@@ -141,6 +147,8 @@ fun HomeScreen(
         onOpenSettings = onOpenSettings,
         onOpenMeasurements = onOpenMeasurements,
         onToggleProtein = { vm.toggleProteinHitToday() },
+        onAddMeal = { desc, grams, source -> vm.addMeal(desc, grams, source) },
+        onDeleteMeal = { vm.deleteMeal(it) },
         onLogWeight = { vm.logWeightToday(it) },
         onAfterCoaching = { vm.refresh() },
         onWeightEntered = { weight -> vm.onWeightEntered(weight, onStartWorkout) },
@@ -166,6 +174,8 @@ private fun HomeScreenContent(
     onOpenSettings: () -> Unit,
     onOpenMeasurements: () -> Unit,
     onToggleProtein: () -> Unit,
+    onAddMeal: (String, Double, String) -> Unit,
+    onDeleteMeal: (MealLogEntity) -> Unit,
     onLogWeight: (Double) -> Unit,
     onAfterCoaching: () -> Unit,
     onWeightEntered: (Double) -> Unit,
@@ -178,6 +188,7 @@ private fun HomeScreenContent(
     var isLoadingAnalysis by remember { mutableStateOf(false) }
     var analysisError by remember { mutableStateOf<String?>(null) }
     var showAnalysisDialog by remember { mutableStateOf(false) }
+    var showMealDialog by remember { mutableStateOf(false) }
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
 
     LaunchedEffect(Unit) {
@@ -268,6 +279,19 @@ private fun HomeScreenContent(
                 }
             }
 
+            // Protein heute: pro-Mahlzeit-Tracking mit Tagesziel
+            item {
+                ProteinCard(
+                    todayMeals = state.todayMeals,
+                    todayProteinGrams = state.todayProteinGrams,
+                    proteinGoalGrams = state.proteinGoalGrams,
+                    proteinHitToday = state.proteinHitToday,
+                    onAddMealClick = { showMealDialog = true },
+                    onDeleteMeal = onDeleteMeal,
+                    onToggleProtein = onToggleProtein
+                )
+            }
+
             // Coach-Plan: Diese Woche
             state.activePlan?.let { plan ->
                 item {
@@ -275,9 +299,7 @@ private fun HomeScreenContent(
                         plan = plan,
                         latestWeightKg = state.weightLogs.firstOrNull()?.weightKg,
                         proteinDaysHit = state.proteinDaysHitThisWeek,
-                        proteinHitToday = state.proteinHitToday,
                         sessionsThisWeek = state.sessionsThisWeek,
-                        onToggleProtein = onToggleProtein,
                         onLogWeight = onLogWeight
                     )
                 }
@@ -579,6 +601,33 @@ private fun HomeScreenContent(
         )
     }
 
+    // Meal Entry Dialog
+    if (showMealDialog) {
+        MealEntryDialog(
+            hasApiKey = hasApiKey,
+            recentMeals = state.recentMeals,
+            estimateFromText = { description ->
+                ClaudeApiService(
+                    apiKey = settingsRepo.claudeApiKey,
+                    sonnetModel = settingsRepo.claudeSonnetModel,
+                    opusModel = settingsRepo.claudeOpusModel,
+                ).estimateProteinFromText(description)
+            },
+            estimateFromImage = { base64, hint ->
+                ClaudeApiService(
+                    apiKey = settingsRepo.claudeApiKey,
+                    sonnetModel = settingsRepo.claudeSonnetModel,
+                    opusModel = settingsRepo.claudeOpusModel,
+                ).estimateProteinFromImage(base64, hint)
+            },
+            onSave = { description, grams, source ->
+                onAddMeal(description, grams, source)
+                showMealDialog = false
+            },
+            onDismiss = { showMealDialog = false }
+        )
+    }
+
     // Weekly Coaching Dialog
     if (showAnalysisDialog && weeklyAnalysis != null) {
         AlertDialog(
@@ -785,9 +834,7 @@ private fun CoachingPlanCard(
     plan: CoachingPlanWithTargets,
     latestWeightKg: Double?,
     proteinDaysHit: Int,
-    proteinHitToday: Boolean,
     sessionsThisWeek: Int,
-    onToggleProtein: () -> Unit,
     onLogWeight: (Double) -> Unit
 ) {
     var showWeightDialog by remember { mutableStateOf(false) }
@@ -835,20 +882,11 @@ private fun CoachingPlanCard(
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onToggleProtein,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    val mark = if (proteinHitToday) "\u2713" else "\u2715"
-                    Text("Protein heute $mark")
-                }
-                OutlinedButton(
-                    onClick = { showWeightDialog = true },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Gewicht")
-                }
+            OutlinedButton(
+                onClick = { showWeightDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Gewicht loggen")
             }
         }
     }
@@ -862,6 +900,122 @@ private fun CoachingPlanCard(
             },
             onSkip = { showWeightDialog = false }
         )
+    }
+}
+
+@Composable
+private fun ProteinCard(
+    todayMeals: List<MealLogEntity>,
+    todayProteinGrams: Double,
+    proteinGoalGrams: Int,
+    proteinHitToday: Boolean,
+    onAddMealClick: () -> Unit,
+    onDeleteMeal: (MealLogEntity) -> Unit,
+    onToggleProtein: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Protein heute",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                val hit = proteinGoalGrams > 0 && todayProteinGrams >= proteinGoalGrams
+                val valueText = if (proteinGoalGrams > 0) {
+                    "${formatGrams(todayProteinGrams)} / $proteinGoalGrams g" +
+                        if (hit) "  ✓" else ""
+                } else {
+                    "${formatGrams(todayProteinGrams)} g"
+                }
+                Text(
+                    text = valueText,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (hit) FontWeight.Bold else FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            if (proteinGoalGrams > 0) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = {
+                        (todayProteinGrams / proteinGoalGrams).toFloat().coerceIn(0f, 1f)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Kein Ziel gesetzt – in den Einstellungen festlegen " +
+                        "oder per Coaching-Plan generieren.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (todayMeals.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                todayMeals.forEach { meal ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = meal.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "${formatGrams(meal.proteinGrams)} g",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        IconButton(onClick = { onDeleteMeal(meal) }) {
+                            Text(
+                                text = "✕",
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onAddMealClick,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("+ Mahlzeit")
+                }
+                // Fallback ohne geloggte Mahlzeiten: Tages-Toggle wie bisher
+                if (todayMeals.isEmpty() && proteinGoalGrams > 0) {
+                    OutlinedButton(
+                        onClick = onToggleProtein,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val mark = if (proteinHitToday) "✓" else "✕"
+                        Text("Ziel erreicht $mark")
+                    }
+                }
+            }
+        }
     }
 }
 
