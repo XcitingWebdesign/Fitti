@@ -32,6 +32,12 @@ class SettingsRepository(context: Context) {
         get() = prefs.getInt(KEY_HEIGHT_CM, 0)
         set(value) = prefs.edit().putInt(KEY_HEIGHT_CM, value).apply()
 
+    // Manuelles Protein-Tagesziel in Gramm; 0 = nicht gesetzt.
+    // Ein aktiver Coaching-Plan (weeklyProteinG) hat Vorrang.
+    var proteinGoalGrams: Int
+        get() = prefs.getInt(KEY_PROTEIN_GOAL, 0)
+        set(value) = prefs.edit().putInt(KEY_PROTEIN_GOAL, value).apply()
+
     var goal: String
         get() = prefs.getString(KEY_GOAL, "") ?: ""
         set(value) = prefs.edit().putString(KEY_GOAL, value).apply()
@@ -102,6 +108,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_REST_SECONDS = "rest_seconds"
         private const val KEY_PROGRESSION_STEP = "progression_step"
         private const val KEY_HEIGHT_CM = "height_cm"
+        private const val KEY_PROTEIN_GOAL = "protein_goal_grams"
         private const val KEY_GOAL = "goal"
         private const val KEY_COACH_PERSONA = "coach_persona"
         private const val KEY_GENDER = "gender"
