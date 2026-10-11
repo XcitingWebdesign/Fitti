@@ -182,6 +182,30 @@ fun SettingsScreen(
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
 
+    // Backup als Datei speichern (SAF)
+    val backupSaveLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val json = exportFullBackup(
+                    exerciseRepo, workoutSessionDao, weightLogDao,
+                    coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
+                    mealLogDao, aiAnalysisDao, aiCallLogDao, settingsRepo
+                )
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use {
+                        it.write(json.toByteArray(Charsets.UTF_8))
+                    }
+                }
+                backupMessage = "Backup gespeichert"
+            } catch (e: Exception) {
+                backupMessage = "Speichern fehlgeschlagen: ${e.message}"
+            }
+        }
+    }
+
     // File picker for full backup import
     val fullBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -917,28 +941,39 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    val backupFilename = "fitti_backup_${
+                        SimpleDateFormat("yyyyMMdd", Locale.GERMANY).format(Date())
+                    }.json"
                     Button(
                         onClick = {
                             scope.launch {
-                                val json = exportFullBackup(
-                                    exerciseRepo, workoutSessionDao, weightLogDao,
-                                    coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
-                                    mealLogDao, aiAnalysisDao, aiCallLogDao, settingsRepo
-                                )
-                                shareText(context, json, "fitti_backup_${
-                                    SimpleDateFormat("yyyyMMdd", Locale.GERMANY).format(Date())
-                                }.json")
+                                try {
+                                    val json = exportFullBackup(
+                                        exerciseRepo, workoutSessionDao, weightLogDao,
+                                        coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
+                                        mealLogDao, aiAnalysisDao, aiCallLogDao, settingsRepo
+                                    )
+                                    shareFile(context, json, backupFilename, "application/json", "Backup teilen")
+                                } catch (e: Exception) {
+                                    backupMessage = "Teilen fehlgeschlagen: ${e.message}"
+                                }
                             }
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Backup erstellen")
+                        Text("Teilen")
+                    }
+                    OutlinedButton(
+                        onClick = { backupSaveLauncher.launch(backupFilename) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Speichern")
                     }
                     OutlinedButton(
                         onClick = { fullBackupLauncher.launch("*/*") },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Backup laden")
+                        Text("Laden")
                     }
                 }
                 if (backupMessage.isNotEmpty()) {
@@ -977,7 +1012,7 @@ fun SettingsScreen(
                             scope.launch {
                                 try {
                                     val markdown = exportAiLogMarkdown(aiCallLogDao, aiAnalysisDao, settingsRepo)
-                                    shareFile(context, markdown, aiLogFilename)
+                                    shareFile(context, markdown, aiLogFilename, "text/plain", "KI-Verlauf teilen")
                                 } catch (e: Exception) {
                                     aiLogMessage = "Teilen fehlgeschlagen: ${e.message}"
                                 }
@@ -1022,7 +1057,7 @@ fun SettingsScreen(
                             scope.launch {
                                 val entities = exerciseRepo.getAllEntities()
                                 val json = exportExercisesJson(entities)
-                                shareText(context, json, "fitti_geraete.json")
+                                shareFile(context, json, "fitti_geraete.json", "application/json", "Ger\u00e4te exportieren")
                             }
                         },
                         modifier = Modifier.weight(1f)
@@ -2133,22 +2168,16 @@ private suspend fun importFullBackup(
     sessions.size
 }
 
-private fun shareText(context: Context, text: String, filename: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "application/json"
-        putExtra(Intent.EXTRA_TEXT, text)
-        putExtra(Intent.EXTRA_SUBJECT, filename)
-    }
-    context.startActivity(
-        Intent.createChooser(intent, "Ger\u00e4te exportieren")
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    )
-}
-
 // Teilt Text als Datei-Anhang (EXTRA_STREAM) statt als EXTRA_TEXT: grosse
 // Exporte sprengen sonst das Binder-Limit, und Apps wie Claude nehmen die
 // Datei direkt als Anhang an.
-private suspend fun shareFile(context: Context, text: String, filename: String) {
+private suspend fun shareFile(
+    context: Context,
+    text: String,
+    filename: String,
+    mimeType: String,
+    chooserTitle: String
+) {
     val file = withContext(Dispatchers.IO) {
         val dir = java.io.File(context.cacheDir, "exports").apply { mkdirs() }
         java.io.File(dir, filename).apply { writeText(text, Charsets.UTF_8) }
@@ -2157,13 +2186,13 @@ private suspend fun shareFile(context: Context, text: String, filename: String) 
         context, "${context.packageName}.fileprovider", file
     )
     val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
+        type = mimeType
         putExtra(Intent.EXTRA_STREAM, uri)
         putExtra(Intent.EXTRA_SUBJECT, filename)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(
-        Intent.createChooser(intent, "KI-Verlauf teilen")
+        Intent.createChooser(intent, chooserTitle)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     )
 }

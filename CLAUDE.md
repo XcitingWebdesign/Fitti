@@ -81,7 +81,7 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 - Shared Debug Keystore fuer konsistente APK-Signierung (CI + lokal)
 - Geraete hinzufuegen/entfernen in Einstellungen (Add-Dialog mit Muskelgruppe, Delete mit Bestaetigung)
 - Muskelgruppe ARMS im Add-Dialog waehlbar (alle 5 Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS)
-- Export/Import fuer Geraetewechsel (JSON via Android Share Sheet / Datei-Picker)
+- Export/Import fuer Geraetewechsel (JSON als Datei-Anhang via FileProvider/Share Sheet oder Speichern-Dialog, Import via Datei-Picker; nie EXTRA_TEXT, sonst TransactionTooLarge bei grossen Backups)
 - Koerpergewichts-Verlaufsgraph auf Home Screen (Canvas-basierter Liniengraph)
 - GitHub Actions CI/CD: `.github/workflows/build.yml` baut APK bei Push auf main, Artifact downloadbar
 - Sitz- und Polsterposition pro Geraet (seatPosition/padPosition, Anzeige im Training als S/P)
