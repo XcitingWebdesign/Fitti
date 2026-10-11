@@ -119,6 +119,8 @@ fun SettingsScreen(
     nutritionLogDao: com.fitti.data.NutritionLogDao,
     bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
     mealLogDao: com.fitti.data.MealLogDao,
+    aiAnalysisDao: com.fitti.data.AiAnalysisDao,
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -187,6 +189,28 @@ fun SettingsScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         pendingRestoreUri = uri
         showRestoreConfirm = true
+    }
+
+    // KI-Verlauf als Markdown-Datei speichern (SAF statt Share-Intent:
+    // der Verlauf kann fuer EXTRA_TEXT zu gross werden)
+    var aiLogMessage by remember { mutableStateOf("") }
+    val aiLogExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/markdown")
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val markdown = exportAiLogMarkdown(aiCallLogDao, aiAnalysisDao, settingsRepo)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use {
+                        it.write(markdown.toByteArray(Charsets.UTF_8))
+                    }
+                }
+                aiLogMessage = "KI-Verlauf gespeichert"
+            } catch (e: Exception) {
+                aiLogMessage = "Export fehlgeschlagen: ${e.message}"
+            }
+        }
     }
 
     // File picker for import
@@ -432,7 +456,8 @@ fun SettingsScreen(
                                 apiKey = settingsRepo.claudeApiKey,
                                 sonnetModel = settingsRepo.claudeSonnetModel,
                                 opusModel = settingsRepo.claudeOpusModel,
-                                coachPersona = settingsRepo.coachPersona
+                                coachPersona = settingsRepo.coachPersona,
+                                callLogDao = aiCallLogDao,
                             )
                             val allExercises = exerciseRepo.getAllEntities()
                             val bw = weightKg.replace(",", ".").toDoubleOrNull()
@@ -883,7 +908,7 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Sichert Ger\u00e4te, Trainingshistorie, K\u00f6rpergewicht und Einstellungen.",
+                    text = "Sichert Ger\u00e4te, Trainingshistorie, K\u00f6rpergewicht, Einstellungen und KI-Verlauf.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -898,7 +923,7 @@ fun SettingsScreen(
                                 val json = exportFullBackup(
                                     exerciseRepo, workoutSessionDao, weightLogDao,
                                     coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
-                                    mealLogDao, settingsRepo
+                                    mealLogDao, aiAnalysisDao, aiCallLogDao, settingsRepo
                                 )
                                 shareText(context, json, "fitti_backup_${
                                     SimpleDateFormat("yyyyMMdd", Locale.GERMANY).format(Date())
@@ -920,6 +945,59 @@ fun SettingsScreen(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = backupMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // KI-Verlauf export (fuer Prompt-Review in einem Claude-Chat)
+            item {
+                Text(
+                    text = "KI-Verlauf",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Alle KI-Anfragen mit System-Prompt, Nachricht und Antwort als Markdown-Datei, plus Profil und Einstellungen (ohne API-Schl\u00fcssel).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                val aiLogFilename = "fitti_ki_verlauf_${
+                    SimpleDateFormat("yyyyMMdd", Locale.GERMANY).format(Date())
+                }.md"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val markdown = exportAiLogMarkdown(aiCallLogDao, aiAnalysisDao, settingsRepo)
+                                    shareFile(context, markdown, aiLogFilename)
+                                } catch (e: Exception) {
+                                    aiLogMessage = "Teilen fehlgeschlagen: ${e.message}"
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Teilen")
+                    }
+                    OutlinedButton(
+                        onClick = { aiLogExportLauncher.launch(aiLogFilename) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Speichern")
+                    }
+                }
+                if (aiLogMessage.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = aiLogMessage,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1180,7 +1258,7 @@ fun SettingsScreen(
                                 val count = importFullBackup(
                                     json, exerciseRepo, workoutSessionDao, weightLogDao,
                                     coachingPlanDao, nutritionLogDao, bodyMeasurementDao,
-                                    mealLogDao, settingsRepo
+                                    mealLogDao, aiAnalysisDao, aiCallLogDao, settingsRepo
                                 )
                                 backupMessage = "Backup wiederhergestellt ($count Trainings)"
                             } catch (e: Exception) {
@@ -1522,6 +1600,8 @@ private suspend fun exportFullBackup(
     nutritionLogDao: com.fitti.data.NutritionLogDao,
     bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
     mealLogDao: com.fitti.data.MealLogDao,
+    aiAnalysisDao: com.fitti.data.AiAnalysisDao,
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
     settingsRepo: SettingsRepository
 ): String = withContext(Dispatchers.IO) {
     val root = JSONObject()
@@ -1707,7 +1787,65 @@ private suspend fun exportFullBackup(
     }
     root.put("bodyMeasurements", measurementsArr)
 
+    // AI analyses (weekly coaching texts)
+    val analysesArr = JSONArray()
+    for (a in aiAnalysisDao.getAll()) {
+        val obj = JSONObject()
+        obj.put("id", a.id)
+        obj.put("analysisText", a.analysisText)
+        obj.put("createdAt", a.createdAt)
+        analysesArr.put(obj)
+    }
+    root.put("aiAnalyses", analysesArr)
+
+    // AI call logs
+    val callLogsArr = JSONArray()
+    for (l in aiCallLogDao.getAll()) {
+        val obj = JSONObject()
+        obj.put("id", l.id)
+        obj.put("createdAt", l.createdAt)
+        obj.put("kind", l.kind)
+        obj.put("model", l.model)
+        obj.put("systemPrompt", l.systemPrompt)
+        obj.put("userMessage", l.userMessage)
+        obj.put("responseText", l.responseText ?: JSONObject.NULL)
+        obj.put("errorText", l.errorText ?: JSONObject.NULL)
+        obj.put("inputTokens", l.inputTokens)
+        obj.put("outputTokens", l.outputTokens)
+        obj.put("durationMs", l.durationMs)
+        callLogsArr.put(obj)
+    }
+    root.put("aiCallLogs", callLogsArr)
+
     root.toString(2)
+}
+
+private suspend fun exportAiLogMarkdown(
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
+    aiAnalysisDao: com.fitti.data.AiAnalysisDao,
+    settingsRepo: SettingsRepository
+): String = withContext(Dispatchers.IO) {
+    val profile = listOf(
+        "Ziel" to settingsRepo.goal,
+        "Coach-Charakter" to settingsRepo.coachPersona,
+        "Geschlecht" to settingsRepo.gender,
+        "Geburtsdatum" to settingsRepo.birthDate,
+        "K\u00f6rpertyp" to settingsRepo.bodyType,
+        "Gr\u00f6\u00dfe (cm)" to settingsRepo.heightCm.toString(),
+        "Protein-Tagesziel (g)" to settingsRepo.proteinGoalGrams.toString(),
+        "Wiederholungen" to "${settingsRepo.repsMin}-${settingsRepo.repsMax}",
+        "S\u00e4tze" to settingsRepo.sets.toString(),
+        "Pause (s)" to settingsRepo.restSeconds.toString(),
+        "Standard-Steigerung (kg)" to settingsRepo.progressionStepKg.toString(),
+        "Modell Sonnet" to settingsRepo.claudeSonnetModel,
+        "Modell Opus" to settingsRepo.claudeOpusModel
+    )
+    com.fitti.data.AiCallLogMarkdown.format(
+        exportedAt = formatDateTime(Date()),
+        profile = profile,
+        logs = aiCallLogDao.getAll(),
+        legacyAnalyses = aiAnalysisDao.getAll()
+    )
 }
 
 private suspend fun importFullBackup(
@@ -1719,6 +1857,8 @@ private suspend fun importFullBackup(
     nutritionLogDao: com.fitti.data.NutritionLogDao,
     bodyMeasurementDao: com.fitti.data.BodyMeasurementDao,
     mealLogDao: com.fitti.data.MealLogDao,
+    aiAnalysisDao: com.fitti.data.AiAnalysisDao,
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
     settingsRepo: SettingsRepository
 ): Int = withContext(Dispatchers.IO) {
     val root = JSONObject(json)
@@ -1954,6 +2094,42 @@ private suspend fun importFullBackup(
         bodyMeasurementDao.insertAll(measurements)
     }
 
+    // Import AI analyses (aeltere Backups haben keine -> Bestand behalten)
+    val analysesArr = root.optJSONArray("aiAnalyses")
+    if (analysesArr != null) {
+        aiAnalysisDao.deleteAll()
+        aiAnalysisDao.insertAll((0 until analysesArr.length()).map { i ->
+            val obj = analysesArr.getJSONObject(i)
+            com.fitti.data.AiAnalysisEntity(
+                id = obj.getLong("id"),
+                analysisText = obj.getString("analysisText"),
+                createdAt = obj.getString("createdAt")
+            )
+        })
+    }
+
+    // Import AI call logs
+    val callLogsArr = root.optJSONArray("aiCallLogs")
+    if (callLogsArr != null) {
+        aiCallLogDao.deleteAll()
+        aiCallLogDao.insertAll((0 until callLogsArr.length()).map { i ->
+            val obj = callLogsArr.getJSONObject(i)
+            com.fitti.data.AiCallLogEntity(
+                id = obj.getLong("id"),
+                createdAt = obj.getString("createdAt"),
+                kind = obj.getString("kind"),
+                model = obj.optString("model", ""),
+                systemPrompt = obj.optString("systemPrompt", ""),
+                userMessage = obj.optString("userMessage", ""),
+                responseText = if (obj.isNull("responseText")) null else obj.getString("responseText"),
+                errorText = if (obj.isNull("errorText")) null else obj.getString("errorText"),
+                inputTokens = obj.optInt("inputTokens", 0),
+                outputTokens = obj.optInt("outputTokens", 0),
+                durationMs = obj.optLong("durationMs", 0)
+            )
+        })
+    }
+
     sessions.size
 }
 
@@ -1965,6 +2141,29 @@ private fun shareText(context: Context, text: String, filename: String) {
     }
     context.startActivity(
         Intent.createChooser(intent, "Ger\u00e4te exportieren")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
+}
+
+// Teilt Text als Datei-Anhang (EXTRA_STREAM) statt als EXTRA_TEXT: grosse
+// Exporte sprengen sonst das Binder-Limit, und Apps wie Claude nehmen die
+// Datei direkt als Anhang an.
+private suspend fun shareFile(context: Context, text: String, filename: String) {
+    val file = withContext(Dispatchers.IO) {
+        val dir = java.io.File(context.cacheDir, "exports").apply { mkdirs() }
+        java.io.File(dir, filename).apply { writeText(text, Charsets.UTF_8) }
+    }
+    val uri = androidx.core.content.FileProvider.getUriForFile(
+        context, "${context.packageName}.fileprovider", file
+    )
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, filename)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(
+        Intent.createChooser(intent, "KI-Verlauf teilen")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     )
 }
