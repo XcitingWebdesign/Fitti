@@ -110,6 +110,7 @@ fun HomeScreen(
     nutritionLogDao: NutritionLogDao,
     bodyMeasurementDao: BodyMeasurementDao,
     mealLogDao: MealLogDao,
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
     onStartWorkout: (Long) -> Unit,
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit,
@@ -144,6 +145,7 @@ fun HomeScreen(
         coachingPlanDao = coachingPlanDao,
         nutritionLogDao = nutritionLogDao,
         bodyMeasurementDao = bodyMeasurementDao,
+        aiCallLogDao = aiCallLogDao,
         onStartTraining = { vm.startOrContinueWorkout(onStartWorkout) },
         onOpenHistory = onOpenHistory,
         onOpenSettings = onOpenSettings,
@@ -171,6 +173,7 @@ private fun HomeScreenContent(
     coachingPlanDao: CoachingPlanDao,
     nutritionLogDao: NutritionLogDao,
     bodyMeasurementDao: BodyMeasurementDao,
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
     onStartTraining: () -> Unit,
     onOpenHistory: (Long) -> Unit,
     onOpenSettings: () -> Unit,
@@ -463,6 +466,7 @@ private fun HomeScreenContent(
                                         sonnetModel = settingsRepo.claudeSonnetModel,
                                         opusModel = settingsRepo.claudeOpusModel,
                                         coachPersona = settingsRepo.coachPersona,
+                                        callLogDao = aiCallLogDao,
                                     )
                                     service.getWeeklyCoaching(
                                         sessions = recentHistories,
@@ -613,6 +617,7 @@ private fun HomeScreenContent(
                     apiKey = settingsRepo.claudeApiKey,
                     sonnetModel = settingsRepo.claudeSonnetModel,
                     opusModel = settingsRepo.claudeOpusModel,
+                    callLogDao = aiCallLogDao,
                 ).estimateProteinFromText(description)
             },
             estimateFromImage = { base64, hint ->
@@ -620,6 +625,7 @@ private fun HomeScreenContent(
                     apiKey = settingsRepo.claudeApiKey,
                     sonnetModel = settingsRepo.claudeSonnetModel,
                     opusModel = settingsRepo.claudeOpusModel,
+                    callLogDao = aiCallLogDao,
                 ).estimateProteinFromImage(base64, hint)
             },
             onSave = { description, grams, source ->

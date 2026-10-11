@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
         val nutritionLogDao = database.nutritionLogDao()
         val bodyMeasurementDao = database.bodyMeasurementDao()
         val mealLogDao = database.mealLogDao()
+        val aiCallLogDao = database.aiCallLogDao()
 
         com.fitti.notifications.NotificationScheduler.applyAll(applicationContext, settingsRepo)
 
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
                             nutritionLogDao = nutritionLogDao,
                             bodyMeasurementDao = bodyMeasurementDao,
                             mealLogDao = mealLogDao,
+                            aiCallLogDao = aiCallLogDao,
                             onStartWorkout = { sessionId ->
                                 navController.navigate("workout/$sessionId") {
                                     launchSingleTop = true
@@ -95,6 +97,7 @@ class MainActivity : ComponentActivity() {
                             coachingPlanDao = coachingPlanDao,
                             nutritionLogDao = nutritionLogDao,
                             bodyMeasurementDao = bodyMeasurementDao,
+                            aiCallLogDao = aiCallLogDao,
                             application = application,
                             onWorkoutComplete = {
                                 navController.popBackStack("home", inclusive = false)
@@ -114,6 +117,7 @@ class MainActivity : ComponentActivity() {
                             weightLogDao = weightLogDao,
                             nutritionLogDao = nutritionLogDao,
                             bodyMeasurementDao = bodyMeasurementDao,
+                            aiCallLogDao = aiCallLogDao,
                             onBack = { navController.popBackStack() }
                         )
                     }
@@ -128,6 +132,8 @@ class MainActivity : ComponentActivity() {
                             nutritionLogDao = nutritionLogDao,
                             bodyMeasurementDao = bodyMeasurementDao,
                             mealLogDao = mealLogDao,
+                            aiAnalysisDao = aiAnalysisDao,
+                            aiCallLogDao = aiCallLogDao,
                             onBack = { navController.popBackStack() }
                         )
                     }

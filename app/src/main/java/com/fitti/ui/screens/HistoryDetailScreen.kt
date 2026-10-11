@@ -59,6 +59,7 @@ fun HistoryDetailScreen(
     weightLogDao: WeightLogDao,
     nutritionLogDao: NutritionLogDao,
     bodyMeasurementDao: BodyMeasurementDao,
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
     onBack: () -> Unit
 ) {
     val vm: HistoryDetailViewModel = viewModel(
@@ -177,6 +178,7 @@ fun HistoryDetailScreen(
                                 sonnetModel = settingsRepo.claudeSonnetModel,
                                 opusModel = settingsRepo.claudeOpusModel,
                                 coachPersona = settingsRepo.coachPersona,
+                                callLogDao = aiCallLogDao,
                             )
                             service.getWorkoutFeedback(
                                 history = history,

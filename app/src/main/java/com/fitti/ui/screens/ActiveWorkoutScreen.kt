@@ -70,6 +70,7 @@ fun ActiveWorkoutScreen(
     coachingPlanDao: com.fitti.data.CoachingPlanDao,
     nutritionLogDao: NutritionLogDao,
     bodyMeasurementDao: BodyMeasurementDao,
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
     application: Application,
     onWorkoutComplete: () -> Unit
 ) {
@@ -96,6 +97,7 @@ fun ActiveWorkoutScreen(
                 weightLogDao = weightLogDao,
                 nutritionLogDao = nutritionLogDao,
                 bodyMeasurementDao = bodyMeasurementDao,
+                aiCallLogDao = aiCallLogDao,
                 onFinish = onWorkoutComplete
             )
         }
@@ -710,6 +712,7 @@ private fun WorkoutSummaryContent(
     weightLogDao: WeightLogDao,
     nutritionLogDao: NutritionLogDao,
     bodyMeasurementDao: BodyMeasurementDao,
+    aiCallLogDao: com.fitti.data.AiCallLogDao,
     onFinish: () -> Unit
 ) {
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
@@ -830,6 +833,7 @@ private fun WorkoutSummaryContent(
                                 sonnetModel = settingsRepo.claudeSonnetModel,
                                 opusModel = settingsRepo.claudeOpusModel,
                                 coachPersona = settingsRepo.coachPersona,
+                                callLogDao = aiCallLogDao,
                             )
                             service.getWorkoutFeedback(
                                 history = history,

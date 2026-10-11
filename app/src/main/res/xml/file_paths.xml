@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Temporaere Export-Dateien zum Teilen (z.B. KI-Verlauf in die Claude-App) -->
+    <cache-path name="exports" path="exports/" />
+</paths>

@@ -7,13 +7,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ClaudeApiService(
     private val apiKey: String,
     private val sonnetModel: String = SettingsRepository.DEFAULT_SONNET_MODEL,
     private val opusModel: String = SettingsRepository.DEFAULT_OPUS_MODEL,
     private val coachPersona: String = "",
+    private val callLogDao: AiCallLogDao? = null,
 ) {
+
+    private class ApiReply(val text: String, val inputTokens: Int, val outputTokens: Int)
 
     // Persona nur als Tonalitaet anhaengen – inhaltliche und Format-Regeln
     // (z.B. der <plan>-Block) behalten explizit Vorrang.
@@ -70,7 +76,7 @@ class ClaudeApiService(
             appendLine(formatProfile(userGoal, latestWeightKg, heightCm))
         }
 
-        return callClaude(withPersona(systemPrompt), userMessage)
+        return callClaude(AiCallLogEntity.KIND_WORKOUT_FEEDBACK, withPersona(systemPrompt), userMessage)
     }
 
     suspend fun getWeeklyAnalysis(
@@ -124,7 +130,7 @@ class ClaudeApiService(
             appendLine(formatProfile(userGoal, latestWeightKg, heightCm))
         }
 
-        return callClaude(withPersona(systemPrompt), userMessage)
+        return callClaude(AiCallLogEntity.KIND_WEEKLY_ANALYSIS, withPersona(systemPrompt), userMessage)
     }
 
     private fun formatProfile(userGoal: String, latestWeightKg: Double?, heightCm: Int): String = buildString {
@@ -496,7 +502,7 @@ class ClaudeApiService(
             }
         }
 
-        return callClaudeWithThinking(withPersona(systemPrompt), userMessage)
+        return callClaudeWithThinking(AiCallLogEntity.KIND_WEEKLY_COACHING, withPersona(systemPrompt), userMessage)
     }
 
     /**
@@ -652,7 +658,7 @@ class ClaudeApiService(
         // Hoeheres Token-Budget: Fliesstext + JSON-Block fuer bis zu 6 Gruppen
         // (je mit Begruendung) passt nicht zuverlaessig in 1024 Tokens – sonst
         // wird die Antwort vor </targets> abgeschnitten und nicht parsebar.
-        return callClaude(withPersona(systemPrompt), userMessage, maxTokens = 2048)
+        return callClaude(AiCallLogEntity.KIND_STRENGTH_TARGETS, withPersona(systemPrompt), userMessage, maxTokens = 2048)
     }
 
     /**
@@ -663,7 +669,7 @@ class ClaudeApiService(
     suspend fun estimateProteinFromText(description: String): Result<String> {
         val userMessage = "Meine Mahlzeit: $description"
         // Bewusst ohne withPersona(): nuechterne Schaetzung, kein Coach-Ton.
-        return callClaude(PROTEIN_SYSTEM_PROMPT, userMessage)
+        return callClaude(AiCallLogEntity.KIND_PROTEIN_TEXT, PROTEIN_SYSTEM_PROMPT, userMessage)
     }
 
     /**
@@ -689,17 +695,29 @@ class ClaudeApiService(
                 put("type", "text")
                 put("text", textPrompt)
             })
-        return callClaude(PROTEIN_SYSTEM_PROMPT, content)
+        return callClaude(AiCallLogEntity.KIND_PROTEIN_IMAGE, PROTEIN_SYSTEM_PROMPT, content)
     }
 
     // userContent ist entweder ein String (reiner Text) oder ein JSONArray aus
     // Content-Blocks (z.B. Bild + Text fuer die Foto-Schaetzung) – org.json
     // serialisiert beides korrekt in das "content"-Feld.
     private suspend fun callClaude(
+        kind: String,
         systemPrompt: String,
         userContent: Any,
         maxTokens: Int = 1024
-    ): Result<String> =
+    ): Result<String> {
+        val started = System.currentTimeMillis()
+        val result = sendMessage(systemPrompt, userContent, maxTokens)
+        logCall(kind, sonnetModel, systemPrompt, userContent, result, started)
+        return result.map { it.text }
+    }
+
+    private suspend fun sendMessage(
+        systemPrompt: String,
+        userContent: Any,
+        maxTokens: Int
+    ): Result<ApiReply> =
         withContext(Dispatchers.IO) {
             val started = System.currentTimeMillis()
             var phase = "connect"
@@ -744,7 +762,7 @@ class ClaudeApiService(
                     val content = json.getJSONArray("content")
                     val text = content.getJSONObject(0).getString("text")
 
-                    Result.success(text)
+                    Result.success(ApiReply(text, usageOf(json, "input_tokens"), usageOf(json, "output_tokens")))
                 } finally {
                     connection.disconnect()
                 }
@@ -753,7 +771,14 @@ class ClaudeApiService(
             }
         }
 
-    private suspend fun callClaudeWithThinking(systemPrompt: String, userMessage: String): Result<String> =
+    private suspend fun callClaudeWithThinking(kind: String, systemPrompt: String, userMessage: String): Result<String> {
+        val started = System.currentTimeMillis()
+        val result = sendMessageWithThinking(systemPrompt, userMessage)
+        logCall(kind, opusModel, systemPrompt, userMessage, result, started)
+        return result.map { it.text }
+    }
+
+    private suspend fun sendMessageWithThinking(systemPrompt: String, userMessage: String): Result<ApiReply> =
         withContext(Dispatchers.IO) {
             val started = System.currentTimeMillis()
             var phase = "connect"
@@ -816,7 +841,7 @@ class ClaudeApiService(
                         return@withContext Result.failure(Exception("Keine Textantwort erhalten"))
                     }
 
-                    Result.success(resultText)
+                    Result.success(ApiReply(resultText, usageOf(json, "input_tokens"), usageOf(json, "output_tokens")))
                 } finally {
                     connection.disconnect()
                 }
@@ -824,6 +849,39 @@ class ClaudeApiService(
                 Result.failure(diagnosticException(e, phase, started))
             }
         }
+
+    private fun usageOf(json: JSONObject, key: String): Int =
+        json.optJSONObject("usage")?.optInt(key, 0) ?: 0
+
+    // Logging darf den eigentlichen KI-Call nie scheitern lassen.
+    private suspend fun logCall(
+        kind: String,
+        model: String,
+        systemPrompt: String,
+        userContent: Any,
+        result: Result<ApiReply>,
+        startedMs: Long
+    ) {
+        val dao = callLogDao ?: return
+        try {
+            val reply = result.getOrNull()
+            dao.insert(
+                AiCallLogEntity(
+                    createdAt = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.GERMANY).format(Date()),
+                    kind = kind,
+                    model = model,
+                    systemPrompt = systemPrompt,
+                    userMessage = describeUserContent(userContent),
+                    responseText = reply?.text,
+                    errorText = result.exceptionOrNull()?.message,
+                    inputTokens = reply?.inputTokens ?: 0,
+                    outputTokens = reply?.outputTokens ?: 0,
+                    durationMs = System.currentTimeMillis() - startedMs
+                )
+            )
+        } catch (_: Exception) {
+        }
+    }
 
     private fun diagnosticException(e: Exception, phase: String, startedMs: Long): Exception {
         val ms = System.currentTimeMillis() - startedMs
@@ -833,6 +891,15 @@ class ClaudeApiService(
     }
 
     companion object {
+        /** Text-Inhalt fuers Log; Bilder werden durch [Bild] ersetzt, damit das Log klein bleibt. */
+        fun describeUserContent(userContent: Any): String {
+            if (userContent !is JSONArray) return userContent.toString()
+            return (0 until userContent.length()).joinToString("\n") { i ->
+                val block = userContent.getJSONObject(i)
+                if (block.optString("type") == "text") block.optString("text") else "[Bild]"
+            }
+        }
+
         private val PROTEIN_SYSTEM_PROMPT =
             "Du bist Ernährungswissenschaftler. Schätze den Proteingehalt (in Gramm) der " +
                 "beschriebenen bzw. fotografierten Mahlzeit.\n\n" +
