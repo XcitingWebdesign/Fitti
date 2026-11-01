@@ -21,3 +21,9 @@ data class WorkoutSessionHistory(
     )
     val sessionExercises: List<SessionExerciseWithSetLogs>
 )
+
+/** Ein vollstaendig absolviertes Geraet in einer abgeschlossenen Session. */
+data class ExerciseTrainedOn(
+    val exerciseId: Long,
+    val startedAt: String
+)

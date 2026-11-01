@@ -1,6 +1,7 @@
 package com.fitti.data
 
 import com.fitti.domain.ProgressionService
+import com.fitti.ui.common.parseDateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -173,7 +174,7 @@ class ClaudeApiService(
         appendLine("Gewichtsverlauf pro \u00dcbung:")
         // exerciseName -> list of (date, weight)
         val exerciseWeights = mutableMapOf<String, MutableList<Pair<String, Double>>>()
-        for (history in allHistories.sortedBy { it.session.startedAt }) {
+        for (history in allHistories.sortedBy { parseDateTime(it.session.startedAt)?.time ?: 0L }) {
             val dateLabel = dateFmt.format(
                 fmt.parse(history.session.completedAt ?: history.session.startedAt) ?: continue
             )
@@ -564,7 +565,7 @@ class ClaudeApiService(
 
         // Per-exercise progression rate (weight change per month)
         val exerciseFirstLast = mutableMapOf<String, Pair<Pair<Long, Double>, Pair<Long, Double>>>()
-        for (history in allHistories.sortedBy { it.session.startedAt }) {
+        for (history in allHistories.sortedBy { parseDateTime(it.session.startedAt)?.time ?: 0L }) {
             val date = fmt.parse(history.session.completedAt ?: history.session.startedAt) ?: continue
             for (exWithLogs in history.sessionExercises) {
                 val name = exWithLogs.sessionExercise.exerciseDisplayName.ifEmpty { exWithLogs.sessionExercise.exerciseCode }

@@ -5,7 +5,13 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.fitti.domain.ExerciseOrderPlanner
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
+
+/** completedAt ("dd.MM.yyyy HH:mm" oder ISO) als chronologisch sortierbarer SQL-Ausdruck. */
+private const val COMPLETED_AT_SORTABLE =
+    "CASE WHEN substr(completedAt, 3, 1) = '.' THEN substr(completedAt, 7, 4) || '-' || substr(completedAt, 4, 2) || '-' || substr(completedAt, 1, 2) || 'T' || substr(completedAt, 12, 5) ELSE completedAt END"
 
 @Dao
 interface WorkoutSessionDao {
@@ -43,22 +49,21 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions WHERE status = 'STARTED' ORDER BY id DESC LIMIT 1")
     suspend fun getActiveSession(): WorkoutSessionEntity?
 
+    /**
+     * Alle Geraete, die in einer abgeschlossenen Session vollstaendig (Saetze >= Soll)
+     * trainiert wurden. Das juengste Datum pro Geraet bestimmt ExerciseOrderPlanner
+     * in Kotlin, weil startedAt als "dd.MM.yyyy HH:mm" nicht lexikalisch sortierbar ist.
+     */
     @Query("""
-        SELECT se.exerciseId
+        SELECT se.exerciseId AS exerciseId, ws.startedAt AS startedAt
         FROM session_exercises se
-        LEFT JOIN set_logs sl ON sl.sessionExerciseId = se.id
-        WHERE se.sessionId = (
-            SELECT id FROM workout_sessions
-            WHERE status = 'COMPLETED'
-            ORDER BY completedAt DESC
-            LIMIT 1
-        )
-        GROUP BY se.id, se.exerciseId, se.targetSets
-        HAVING COUNT(sl.id) < se.targetSets
+        INNER JOIN workout_sessions ws ON ws.id = se.sessionId
+        WHERE ws.status = 'COMPLETED'
+          AND (SELECT COUNT(*) FROM set_logs sl WHERE sl.sessionExerciseId = se.id) >= se.targetSets
     """)
-    suspend fun getUnfinishedExerciseIdsFromLastSession(): List<Long>
+    suspend fun getFullyTrainedDates(): List<ExerciseTrainedOn>
 
-    @Query("SELECT * FROM workout_sessions WHERE status = 'COMPLETED' ORDER BY completedAt DESC")
+    @Query("SELECT * FROM workout_sessions WHERE status = 'COMPLETED' ORDER BY " + COMPLETED_AT_SORTABLE + " DESC")
     fun observeCompletedSessions(): Flow<List<WorkoutSessionEntity>>
 
     @Transaction
@@ -66,7 +71,7 @@ interface WorkoutSessionDao {
     suspend fun getSessionHistory(sessionId: Long): WorkoutSessionHistory?
 
     @Transaction
-    @Query("SELECT * FROM workout_sessions WHERE status = 'COMPLETED' ORDER BY completedAt DESC")
+    @Query("SELECT * FROM workout_sessions WHERE status = 'COMPLETED' ORDER BY " + COMPLETED_AT_SORTABLE + " DESC")
     fun observeSessionHistories(): Flow<List<WorkoutSessionHistory>>
 
     // Full backup queries
@@ -121,7 +126,9 @@ interface WorkoutSessionDao {
         repsMin: Int,
         repsMax: Int,
         sets: Int,
-        restSeconds: Int
+        restSeconds: Int,
+        focusGroups: Set<String> = emptySet(),
+        today: LocalDate = LocalDate.now()
     ): Long {
         val sessionId = insertSession(
             WorkoutSessionEntity(
@@ -131,10 +138,12 @@ interface WorkoutSessionDao {
             )
         )
 
-        val unfinishedIds = getUnfinishedExerciseIdsFromLastSession().toSet()
-        val all = getAllActiveExercises()
-        val (priority, rest) = all.partition { it.id in unfinishedIds }
-        val ordered = priority + rest
+        val ordered = ExerciseOrderPlanner.order(
+            exercises = getAllActiveExercises(),
+            trainedOn = getFullyTrainedDates(),
+            focusGroups = focusGroups,
+            today = today
+        )
         val snapshots = ordered.map { exercise ->
             SessionExerciseEntity(
                 sessionId = sessionId,
@@ -206,4 +215,5 @@ interface WorkoutSessionDao {
             completedAt = completedAt
         ) == 1
     }
+
 }

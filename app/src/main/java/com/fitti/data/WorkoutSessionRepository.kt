@@ -10,8 +10,9 @@ class WorkoutSessionRepository(
         repsMin: Int,
         repsMax: Int,
         sets: Int,
-        restSeconds: Int
-    ): Long = dao.startSession(startedAt, repsMin, repsMax, sets, restSeconds)
+        restSeconds: Int,
+        focusGroups: Set<String> = emptySet()
+    ): Long = dao.startSession(startedAt, repsMin, repsMax, sets, restSeconds, focusGroups)
 
     suspend fun saveSet(
         sessionExerciseId: Long,
