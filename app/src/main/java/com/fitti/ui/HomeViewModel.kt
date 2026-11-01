@@ -466,7 +466,7 @@ class HomeViewModelFactory(
             nutritionLogDao = nutritionLogDao,
             bodyMeasurementDao = bodyMeasurementDao,
             mealLogDao = mealLogDao,
-            startWorkoutSessionUseCase = StartWorkoutSessionUseCase(workoutRepo, settingsRepo)
+            startWorkoutSessionUseCase = StartWorkoutSessionUseCase(workoutRepo, settingsRepo, exerciseRepo)
         ) as T
     }
 }
