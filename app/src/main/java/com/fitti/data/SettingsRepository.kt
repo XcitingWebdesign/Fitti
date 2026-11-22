@@ -38,6 +38,12 @@ class SettingsRepository(context: Context) {
         get() = prefs.getInt(KEY_PROTEIN_GOAL, 0)
         set(value) = prefs.edit().putInt(KEY_PROTEIN_GOAL, value).apply()
 
+    // Alternatives Protein-Ziel in g pro kg Koerpergewicht; 0 = nicht gesetzt.
+    // Hat Vorrang vor proteinGoalGrams, sobald ein Koerpergewicht bekannt ist.
+    var proteinGoalPerKg: Double
+        get() = Math.round(prefs.getFloat(KEY_PROTEIN_GOAL_PER_KG, 0f) * 100) / 100.0
+        set(value) = prefs.edit().putFloat(KEY_PROTEIN_GOAL_PER_KG, value.toFloat()).apply()
+
     var goal: String
         get() = prefs.getString(KEY_GOAL, "") ?: ""
         set(value) = prefs.edit().putString(KEY_GOAL, value).apply()
@@ -109,6 +115,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_PROGRESSION_STEP = "progression_step"
         private const val KEY_HEIGHT_CM = "height_cm"
         private const val KEY_PROTEIN_GOAL = "protein_goal_grams"
+        private const val KEY_PROTEIN_GOAL_PER_KG = "protein_goal_per_kg"
         private const val KEY_GOAL = "goal"
         private const val KEY_COACH_PERSONA = "coach_persona"
         private const val KEY_GENDER = "gender"

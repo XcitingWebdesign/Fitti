@@ -26,6 +26,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -59,6 +60,7 @@ import com.fitti.data.WorkoutSessionDao
 import com.fitti.data.WorkoutSessionEntity
 import com.fitti.domain.Exercise
 import com.fitti.domain.ProgressionService
+import com.fitti.domain.ProteinGoal
 import com.fitti.domain.StrengthTargets
 import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.formatDate
@@ -132,7 +134,13 @@ fun SettingsScreen(
     var sonnetModel by remember { mutableStateOf(settingsRepo.claudeSonnetModel) }
     var opusModel by remember { mutableStateOf(settingsRepo.claudeOpusModel) }
     var heightCm by remember { mutableStateOf(settingsRepo.heightCm.let { if (it == 0) "" else it.toString() }) }
-    var proteinGoal by remember { mutableStateOf(settingsRepo.proteinGoalGrams.let { if (it == 0) "" else it.toString() }) }
+    var proteinPerKg by remember { mutableStateOf(settingsRepo.proteinGoalPerKg > 0) }
+    var proteinGoal by remember {
+        mutableStateOf(
+            if (settingsRepo.proteinGoalPerKg > 0) settingsRepo.proteinGoalPerKg.cleanWeight().replace(".", ",")
+            else settingsRepo.proteinGoalGrams.let { if (it == 0) "" else it.toString() }
+        )
+    }
     var weightKg by remember { mutableStateOf("") }
     var repsMin by remember { mutableStateOf(settingsRepo.repsMin.toString()) }
     var repsMax by remember { mutableStateOf(settingsRepo.repsMax.toString()) }
@@ -351,17 +359,40 @@ fun SettingsScreen(
             }
 
             item {
-                OutlinedTextField(
-                    value = proteinGoal,
-                    onValueChange = { proteinGoal = it },
-                    label = { Text("Protein-Ziel (g/Tag)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    supportingText = {
-                        Text("Ein aktiver Coaching-Plan überschreibt dieses Ziel.")
+                Column {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = !proteinPerKg,
+                            onClick = { proteinPerKg = false },
+                            label = { Text("g pro Tag") }
+                        )
+                        FilterChip(
+                            selected = proteinPerKg,
+                            onClick = { proteinPerKg = true },
+                            label = { Text("g pro kg K\u00f6rpergewicht") }
+                        )
                     }
-                )
+                    val perKgValue = ProteinGoal.parseDecimal(proteinGoal)
+                    val bodyWeight = ProteinGoal.parseDecimal(weightKg)
+                    OutlinedTextField(
+                        value = proteinGoal,
+                        onValueChange = { proteinGoal = it },
+                        label = { Text(if (proteinPerKg) "Protein-Ziel (g/kg)" else "Protein-Ziel (g/Tag)") },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (proteinPerKg) KeyboardType.Decimal else KeyboardType.Number
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = {
+                            val hint = if (proteinPerKg && perKgValue != null && bodyWeight != null) {
+                                "= ${ProteinGoal.dailyGrams(0, perKgValue, bodyWeight)} g/Tag bei ${bodyWeight.cleanWeight()} kg. "
+                            } else if (proteinPerKg) {
+                                "Wird mit dem zuletzt erfassten K\u00f6rpergewicht berechnet. "
+                            } else ""
+                            Text(hint + "Ein aktiver Coaching-Plan \u00fcberschreibt dieses Ziel.")
+                        }
+                    )
+                }
             }
 
             item {
@@ -1158,7 +1189,13 @@ fun SettingsScreen(
                         settingsRepo.goal = goal
                         settingsRepo.coachPersona = coachPersona.trim()
                         settingsRepo.heightCm = heightCm.toIntOrNull()?.coerceIn(0, 300) ?: 0
-                        settingsRepo.proteinGoalGrams = proteinGoal.toIntOrNull()?.coerceIn(0, 500) ?: 0
+                        if (proteinPerKg) {
+                            settingsRepo.proteinGoalPerKg = ProteinGoal.parseDecimal(proteinGoal)?.coerceIn(0.0, 5.0) ?: 0.0
+                            settingsRepo.proteinGoalGrams = 0
+                        } else {
+                            settingsRepo.proteinGoalGrams = ProteinGoal.parseDecimal(proteinGoal)?.toInt()?.coerceIn(0, 500) ?: 0
+                            settingsRepo.proteinGoalPerKg = 0.0
+                        }
                         settingsRepo.claudeApiKey = apiKey.trim()
                         settingsRepo.claudeSonnetModel = sonnetModel.trim()
                             .ifBlank { SettingsRepository.DEFAULT_SONNET_MODEL }
@@ -1655,6 +1692,7 @@ private suspend fun exportFullBackup(
     settings.put("goal", settingsRepo.goal)
     settings.put("coachPersona", settingsRepo.coachPersona)
     settings.put("proteinGoalGrams", settingsRepo.proteinGoalGrams)
+    settings.put("proteinGoalPerKg", settingsRepo.proteinGoalPerKg)
     root.put("settings", settings)
 
     // Exercises
@@ -1868,6 +1906,7 @@ private suspend fun exportAiLogMarkdown(
         "K\u00f6rpertyp" to settingsRepo.bodyType,
         "Gr\u00f6\u00dfe (cm)" to settingsRepo.heightCm.toString(),
         "Protein-Tagesziel (g)" to settingsRepo.proteinGoalGrams.toString(),
+        "Protein-Ziel (g/kg)" to settingsRepo.proteinGoalPerKg.toString(),
         "Wiederholungen" to "${settingsRepo.repsMin}-${settingsRepo.repsMax}",
         "S\u00e4tze" to settingsRepo.sets.toString(),
         "Pause (s)" to settingsRepo.restSeconds.toString(),
@@ -1911,6 +1950,7 @@ private suspend fun importFullBackup(
         settingsRepo.goal = settings.optString("goal", "")
         settingsRepo.coachPersona = settings.optString("coachPersona", "")
         settingsRepo.proteinGoalGrams = settings.optInt("proteinGoalGrams", 0)
+        settingsRepo.proteinGoalPerKg = settings.optDouble("proteinGoalPerKg", 0.0)
     }
 
     // Clear existing data (order matters for foreign keys)

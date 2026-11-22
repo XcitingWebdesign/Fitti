@@ -24,6 +24,7 @@ import java.util.Locale
 import com.fitti.domain.Achievement
 import com.fitti.domain.AchievementService
 import com.fitti.domain.Exercise
+import com.fitti.domain.ProteinGoal
 import com.fitti.domain.StartWorkoutSessionUseCase
 import com.fitti.domain.StrengthTargets
 import com.fitti.domain.TargetRadarCalculator
@@ -191,7 +192,7 @@ class HomeViewModel(
         val todayMeals = mealLogDao.getForDate(today)
         val todayProteinGrams = todayMeals.sumOf { it.proteinGrams }
         val recentMeals = mealLogDao.getRecentDistinct(RECENT_MEALS_LIMIT)
-        val proteinGoal = effectiveProteinGoal(plan)
+        val proteinGoal = effectiveProteinGoal(plan, weightLogDao.getLatest()?.weightKg)
 
         val sessionsThisWeek = _uiState.value.recentSessions.count { session ->
             val completedAt = session.completedAt ?: return@count false
@@ -222,10 +223,13 @@ class HomeViewModel(
     }
 
     // Effektives Tagesziel: aktiver Coaching-Plan hat Vorrang vor dem
-    // manuell in den Einstellungen gesetzten Ziel.
-    private fun effectiveProteinGoal(plan: CoachingPlanWithTargets?): Int {
+    // manuell in den Einstellungen gesetzten Ziel (g/Tag oder g/kg).
+    private fun effectiveProteinGoal(plan: CoachingPlanWithTargets?, bodyWeightKg: Double?): Int {
         val planGoal = plan?.plan?.weeklyProteinG ?: 0
-        return if (planGoal > 0) planGoal else settingsRepo.proteinGoalGrams
+        if (planGoal > 0) return planGoal
+        return ProteinGoal.dailyGrams(
+            settingsRepo.proteinGoalGrams, settingsRepo.proteinGoalPerKg, bodyWeightKg
+        )
     }
 
     fun addMeal(description: String, proteinGrams: Double, source: String) {
@@ -263,7 +267,7 @@ class HomeViewModel(
         val today = isoDate(Date())
         val meals = mealLogDao.getForDate(today)
         if (meals.isEmpty()) return
-        val goal = effectiveProteinGoal(coachingPlanDao.getLatest())
+        val goal = effectiveProteinGoal(coachingPlanDao.getLatest(), weightLogDao.getLatest()?.weightKg)
         if (goal <= 0) return
         val hit = meals.sumOf { it.proteinGrams } >= goal
         val existing = nutritionLogDao.getForDate(today)
