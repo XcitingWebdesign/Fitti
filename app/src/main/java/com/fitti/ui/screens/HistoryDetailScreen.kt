@@ -45,6 +45,7 @@ import com.fitti.ui.HistoryDetailViewModel
 import com.fitti.ui.HistoryDetailViewModelFactory
 
 import com.fitti.ui.common.AiFeedbackSection
+import com.fitti.ui.common.rememberAiFeedbackState
 import com.fitti.ui.common.calculateDuration
 import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.formatDurationMinutes
@@ -68,6 +69,7 @@ fun HistoryDetailScreen(
     )
     val state by vm.uiState.collectAsState()
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
+    val feedbackState = rememberAiFeedbackState()
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.deleted) {
@@ -167,6 +169,7 @@ fun HistoryDetailScreen(
             if (hasApiKey) {
                 item {
                     AiFeedbackSection(
+                        state = feedbackState,
                         onRequestFeedback = {
                             val weight = weightLogDao.getLatest()?.weightKg
                             val allHistories = workoutRepo.observeSessionHistories().first()

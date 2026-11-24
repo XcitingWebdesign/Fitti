@@ -55,6 +55,7 @@ import com.fitti.ui.SessionSummary
 import com.fitti.ui.TimerState
 
 import com.fitti.ui.common.AiFeedbackSection
+import com.fitti.ui.common.rememberAiFeedbackState
 import com.fitti.ui.common.cleanWeight
 import com.fitti.ui.common.formatDurationMinutes
 import com.fitti.ui.common.muscleGroupLabels
@@ -716,6 +717,7 @@ private fun WorkoutSummaryContent(
     onFinish: () -> Unit
 ) {
     val hasApiKey = remember { settingsRepo.claudeApiKey.isNotBlank() }
+    val feedbackState = rememberAiFeedbackState()
 
     Scaffold { innerPadding ->
         LazyColumn(
@@ -820,6 +822,7 @@ private fun WorkoutSummaryContent(
                 item {
                     Spacer(Modifier.height(24.dp))
                     AiFeedbackSection(
+                        state = feedbackState,
                         onRequestFeedback = {
                             val history = workoutRepo.getSessionHistory(sessionId)
                                 ?: return@AiFeedbackSection Result.failure(Exception("Training nicht gefunden."))

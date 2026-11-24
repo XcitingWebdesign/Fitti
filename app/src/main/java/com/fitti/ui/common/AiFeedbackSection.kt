@@ -23,17 +23,56 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+
+/**
+ * Zustand + laufender Call leben auf Bildschirm-Ebene, nicht im
+ * LazyColumn-Eintrag: sonst bricht Scrollen (Eintrag wird entsorgt) den
+ * Call ab und das Feedback ist weg.
+ */
+class AiFeedbackState(private val scope: CoroutineScope) {
+    var feedback by mutableStateOf<String?>(null)
+        private set
+    var isLoading by mutableStateOf(false)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+
+    fun request(onRequestFeedback: suspend () -> Result<String>) {
+        if (isLoading) return
+        isLoading = true
+        error = null
+        scope.launch {
+            try {
+                onRequestFeedback()
+                    .onSuccess { feedback = it }
+                    .onFailure { e -> error = "Fehler: ${e.message}" }
+            } catch (e: Exception) {
+                error = "Fehler: ${e.message}"
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+}
+
+/** Ausserhalb der LazyColumn aufrufen. */
+@Composable
+fun rememberAiFeedbackState(): AiFeedbackState {
+    val scope = rememberCoroutineScope()
+    return remember { AiFeedbackState(scope) }
+}
 
 @Composable
 fun AiFeedbackSection(
+    state: AiFeedbackState,
     onRequestFeedback: suspend () -> Result<String>,
     modifier: Modifier = Modifier
 ) {
-    val scope = rememberCoroutineScope()
-    var feedback by remember { mutableStateOf<String?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    val feedback = state.feedback
+    val isLoading = state.isLoading
+    val error = state.error
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -43,21 +82,7 @@ fun AiFeedbackSection(
 
         if (feedback == null && !isLoading) {
             FilledTonalButton(
-                onClick = {
-                    isLoading = true
-                    error = null
-                    scope.launch {
-                        try {
-                            onRequestFeedback()
-                                .onSuccess { feedback = it }
-                                .onFailure { e -> error = "Fehler: ${e.message}" }
-                        } catch (e: Exception) {
-                            error = "Fehler: ${e.message}"
-                        } finally {
-                            isLoading = false
-                        }
-                    }
-                },
+                onClick = { state.request(onRequestFeedback) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -84,7 +109,7 @@ fun AiFeedbackSection(
         if (error != null) {
             Spacer(Modifier.height(12.dp))
             Text(
-                text = error!!,
+                text = error,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error
             )
@@ -106,7 +131,7 @@ fun AiFeedbackSection(
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(8.dp))
-                    MarkdownText(text = feedback!!)
+                    MarkdownText(text = feedback)
                 }
             }
         }
