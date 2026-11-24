@@ -16,6 +16,7 @@ import com.fitti.data.ExerciseRepository
 import com.fitti.data.FittiDatabase
 import com.fitti.data.SettingsRepository
 import com.fitti.data.WorkoutSessionRepository
+import com.fitti.notifications.AiCallKeepAliveService
 import com.fitti.ui.screens.ActiveWorkoutScreen
 import com.fitti.ui.screens.HistoryDetailScreen
 import com.fitti.ui.screens.HomeScreen
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        AiCallKeepAliveService.install(this)
         val database = FittiDatabase.create(applicationContext)
         val exerciseRepo = ExerciseRepository(database.exerciseDao())
         val workoutRepo = WorkoutSessionRepository(database.workoutSessionDao())

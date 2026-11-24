@@ -32,6 +32,11 @@
             android:exported="false"
             android:foregroundServiceType="shortService" />
 
+        <service
+            android:name=".notifications.AiCallKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -91,6 +91,7 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 - Coach-Charakter als Freitext-Prompt in Einstellungen (fliesst in alle KI-System-Prompts ein, Formatregeln behalten Vorrang)
 - Protein-Tracking pro Mahlzeit: Tagesziel wahlweise in g/Tag oder g/kg Koerpergewicht (ProteinGoal, berechnet mit letztem Gewicht; Komma und Punkt erlaubt; Coaching-Plan hat Vorrang), ProteinCard auf Home mit Fortschrittsbalken, MealEntryDialog mit Freitext (inkl. Spracheingabe via RecognizerIntent), Foto (Kamera/Galerie, ohne CAMERA-Permission) und KI-Schaetzung via Claude (<protein>-JSON-Block, ProteinEstimateParser); Schnell-Wiederholung letzter Mahlzeiten; proteinHit-Boolean wird aus der Tagessumme abgeleitet (Coaching/Statistik unveraendert)
 - Trainings-Reihenfolge (ExerciseOrderPlanner): Bauch (ABS) immer zuletzt -> laengste Pause seit letztem vollstaendigen Training -> Ziel-Fokusgruppen (Radar < 70 %) -> Aufstellung (sortOrder). Datumsstrings sind "dd.MM.yyyy HH:mm" und NICHT lexikalisch sortierbar (SQL: COMPLETED_AT_SORTABLE, Kotlin: parsen)
+- KI-Calls ueberleben App-Wechsel: AiCallKeepAliveService (shortService-Foreground, referenzgezaehlt via ClaudeApiService.callLifecycle) haelt die Verbindung, sonst kappt Android sie im Hintergrund ("Software caused connection abort")
 - KI-Call-Log: ClaudeApiService protokolliert jeden Call (optional via callLogDao, Bilder als [Bild]); Komplett-Backup enthaelt aiAnalyses + aiCallLogs; "KI-Verlauf exportieren" in Einstellungen speichert Markdown (Profil + alle Calls) via Datei-Dialog
 
 ## Bekannte TODOs

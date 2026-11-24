@@ -710,10 +710,12 @@ class ClaudeApiService(
         maxTokens: Int = 1024
     ): Result<String> {
         val started = System.currentTimeMillis()
-        val model = ClaudeModelResolver.resolve(sonnetModel, ClaudeModelResolver.FAMILY_SONNET, apiKey)
-        val result = sendMessage(model, systemPrompt, userContent, maxTokens)
-        logCall(kind, model, systemPrompt, userContent, result, started)
-        return result.map { it.text }
+        return guarded {
+            val model = ClaudeModelResolver.resolve(sonnetModel, ClaudeModelResolver.FAMILY_SONNET, apiKey)
+            val result = sendMessage(model, systemPrompt, userContent, maxTokens)
+            logCall(kind, model, systemPrompt, userContent, result, started)
+            result.map { it.text }
+        }
     }
 
     private suspend fun sendMessage(
@@ -781,10 +783,23 @@ class ClaudeApiService(
 
     private suspend fun callClaudeWithThinking(kind: String, systemPrompt: String, userMessage: String): Result<String> {
         val started = System.currentTimeMillis()
-        val model = ClaudeModelResolver.resolve(opusModel, ClaudeModelResolver.FAMILY_OPUS, apiKey)
-        val result = sendMessageWithThinking(model, systemPrompt, userMessage)
-        logCall(kind, model, systemPrompt, userMessage, result, started)
-        return result.map { it.text }
+        return guarded {
+            val model = ClaudeModelResolver.resolve(opusModel, ClaudeModelResolver.FAMILY_OPUS, apiKey)
+            val result = sendMessageWithThinking(model, systemPrompt, userMessage)
+            logCall(kind, model, systemPrompt, userMessage, result, started)
+            result.map { it.text }
+        }
+    }
+
+    // Haelt die App waehrend des Calls im Vordergrund (siehe AiCallKeepAliveService).
+    private suspend fun <T> guarded(block: suspend () -> T): T {
+        val lifecycle = callLifecycle
+        lifecycle?.started()
+        try {
+            return block()
+        } finally {
+            lifecycle?.finished()
+        }
     }
 
     private suspend fun sendMessageWithThinking(model: String, systemPrompt: String, userMessage: String): Result<ApiReply> =
@@ -899,8 +914,17 @@ class ClaudeApiService(
         return Exception("$cls$cause @$phase nach ${ms}ms: ${e.message}", e)
     }
 
+    interface CallLifecycle {
+        fun started()
+        fun finished()
+    }
+
     companion object {
         private const val THINKING_HEADROOM_TOKENS = 4000
+
+        /** Von MainActivity gesetzt; null in Tests und Workern ohne UI. */
+        @Volatile
+        var callLifecycle: CallLifecycle? = null
 
         /** Text-Inhalt fuers Log; Bilder werden durch [Bild] ersetzt, damit das Log klein bleibt. */
         fun describeUserContent(userContent: Any): String {
