@@ -27,6 +27,7 @@ com.fitti/
     AiCallLogEntity.kt      # Protokoll jedes Claude-Calls (System-Prompt, Nachricht, Antwort, Tokens)
     AiCallLogMarkdown.kt    # Markdown-Export des KI-Verlaufs fuer Prompt-Review
     ProteinEstimateParser.kt # Toleranter Parser fuer <protein>-JSON aus Claude-Antworten
+    ClaudeModelResolver.kt  # "Neuestes Modell" je Familie ueber die Models-API
     SettingsRepository.kt   # SharedPreferences fuer Defaults
   domain/
     Exercise.kt             # Domain-Modell
@@ -77,7 +78,7 @@ Unterstuetzte Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS (Arme), ABS (Bauch)
 - Default Pause: 60s
 - Freitext-Ziel im Profil (mehrzeiliges Eingabefeld, auf Home Screen angezeigt)
 - Claude API-Schluessel Speicherung in Einstellungen (fuer KI-Feedback)
-- Claude Modell-IDs (Sonnet/Opus) in Einstellungen konfigurierbar, Defaults in SettingsRepository
+- Claude Modell-IDs (Sonnet/Opus) in Einstellungen konfigurierbar; leer = automatisch neuestes Modell der Familie via GET /v1/models (ClaudeModelResolver, pro Prozess gecacht), Fallback DEFAULT_*_MODEL in SettingsRepository. Antworten koennen mit thinking-Bloecken beginnen -> immer ersten text-Block lesen
 - Shared Debug Keystore fuer konsistente APK-Signierung (CI + lokal)
 - Geraete hinzufuegen/entfernen in Einstellungen (Add-Dialog mit Muskelgruppe, Delete mit Bestaetigung)
 - Muskelgruppe ARMS im Add-Dialog waehlbar (alle 5 Gruppen: CHEST, BACK, LEGS, SHOULDERS, ARMS)

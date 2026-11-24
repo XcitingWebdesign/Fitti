@@ -1156,9 +1156,10 @@ fun SettingsScreen(
                     value = sonnetModel,
                     onValueChange = { sonnetModel = it },
                     label = { Text("Sonnet Modell-ID") },
+                    placeholder = { Text("automatisch (neuestes)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    supportingText = { Text("F\u00fcr Post-Workout-Feedback. Default: ${SettingsRepository.DEFAULT_SONNET_MODEL}") }
+                    supportingText = { Text("F\u00fcr Feedback und Protein-Sch\u00e4tzung. Leer lassen = immer das neueste Sonnet-Modell.") }
                 )
             }
 
@@ -1167,9 +1168,10 @@ fun SettingsScreen(
                     value = opusModel,
                     onValueChange = { opusModel = it },
                     label = { Text("Opus Modell-ID") },
+                    placeholder = { Text("automatisch (neuestes)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    supportingText = { Text("F\u00fcr W\u00f6chentliches Coaching. Default: ${SettingsRepository.DEFAULT_OPUS_MODEL}") }
+                    supportingText = { Text("F\u00fcr W\u00f6chentliches Coaching. Leer lassen = immer das neueste Opus-Modell.") }
                 )
             }
 
@@ -1198,9 +1200,7 @@ fun SettingsScreen(
                         }
                         settingsRepo.claudeApiKey = apiKey.trim()
                         settingsRepo.claudeSonnetModel = sonnetModel.trim()
-                            .ifBlank { SettingsRepository.DEFAULT_SONNET_MODEL }
                         settingsRepo.claudeOpusModel = opusModel.trim()
-                            .ifBlank { SettingsRepository.DEFAULT_OPUS_MODEL }
                         settingsRepo.gender = gender
                         settingsRepo.birthDate = birthDate.trim()
                         settingsRepo.bodyType = bodyType
@@ -1911,8 +1911,8 @@ private suspend fun exportAiLogMarkdown(
         "S\u00e4tze" to settingsRepo.sets.toString(),
         "Pause (s)" to settingsRepo.restSeconds.toString(),
         "Standard-Steigerung (kg)" to settingsRepo.progressionStepKg.toString(),
-        "Modell Sonnet" to settingsRepo.claudeSonnetModel,
-        "Modell Opus" to settingsRepo.claudeOpusModel
+        "Modell Sonnet" to settingsRepo.claudeSonnetModel.ifBlank { "automatisch (neuestes)" },
+        "Modell Opus" to settingsRepo.claudeOpusModel.ifBlank { "automatisch (neuestes)" }
     )
     com.fitti.data.AiCallLogMarkdown.format(
         exportedAt = formatDateTime(Date()),

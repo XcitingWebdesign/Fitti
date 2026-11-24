@@ -72,15 +72,18 @@ class SettingsRepository(context: Context) {
         get() = prefs.getString(KEY_CLAUDE_API_KEY, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CLAUDE_API_KEY, value).apply()
 
+    // Leer = automatisch das neueste Modell der Familie (ClaudeModelResolver).
+    // Frueher automatisch gespeicherte Defaults gelten ebenfalls als "automatisch".
     var claudeSonnetModel: String
-        get() = prefs.getString(KEY_CLAUDE_SONNET_MODEL, DEFAULT_SONNET_MODEL)
-            ?.ifBlank { DEFAULT_SONNET_MODEL } ?: DEFAULT_SONNET_MODEL
+        get() = autoIfLegacyDefault(prefs.getString(KEY_CLAUDE_SONNET_MODEL, "") ?: "")
         set(value) = prefs.edit().putString(KEY_CLAUDE_SONNET_MODEL, value).apply()
 
     var claudeOpusModel: String
-        get() = prefs.getString(KEY_CLAUDE_OPUS_MODEL, DEFAULT_OPUS_MODEL)
-            ?.ifBlank { DEFAULT_OPUS_MODEL } ?: DEFAULT_OPUS_MODEL
+        get() = autoIfLegacyDefault(prefs.getString(KEY_CLAUDE_OPUS_MODEL, "") ?: "")
         set(value) = prefs.edit().putString(KEY_CLAUDE_OPUS_MODEL, value).apply()
+
+    private fun autoIfLegacyDefault(value: String): String =
+        if (value.trim() in LEGACY_DEFAULT_MODELS) "" else value.trim()
 
     fun getSeenAchievements(): Set<String> =
         prefs.getStringSet(KEY_SEEN_ACHIEVEMENTS, emptySet())?.toSet() ?: emptySet()
@@ -131,7 +134,9 @@ class SettingsRepository(context: Context) {
         private const val KEY_MONTHLY_MEAS = "notif_monthly_meas_enabled"
         private const val KEY_WEEKLY_COACH = "notif_weekly_coach_enabled"
 
-        const val DEFAULT_SONNET_MODEL = "claude-sonnet-4-6"
-        const val DEFAULT_OPUS_MODEL = "claude-opus-4-7"
+        // Fallback, falls die Models-API nicht erreichbar ist.
+        const val DEFAULT_SONNET_MODEL = "claude-sonnet-5-5"
+        const val DEFAULT_OPUS_MODEL = "claude-opus-5-5"
+        private val LEGACY_DEFAULT_MODELS = setOf("claude-sonnet-4-6", "claude-opus-4-7")
     }
 }

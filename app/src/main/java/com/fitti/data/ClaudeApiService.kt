@@ -14,8 +14,9 @@ import java.util.Locale
 
 class ClaudeApiService(
     private val apiKey: String,
-    private val sonnetModel: String = SettingsRepository.DEFAULT_SONNET_MODEL,
-    private val opusModel: String = SettingsRepository.DEFAULT_OPUS_MODEL,
+    // Leer = automatisch neuestes Modell (ClaudeModelResolver).
+    private val sonnetModel: String = "",
+    private val opusModel: String = "",
     private val coachPersona: String = "",
     private val callLogDao: AiCallLogDao? = null,
 ) {
@@ -709,12 +710,14 @@ class ClaudeApiService(
         maxTokens: Int = 1024
     ): Result<String> {
         val started = System.currentTimeMillis()
-        val result = sendMessage(systemPrompt, userContent, maxTokens)
-        logCall(kind, sonnetModel, systemPrompt, userContent, result, started)
+        val model = ClaudeModelResolver.resolve(sonnetModel, ClaudeModelResolver.FAMILY_SONNET, apiKey)
+        val result = sendMessage(model, systemPrompt, userContent, maxTokens)
+        logCall(kind, model, systemPrompt, userContent, result, started)
         return result.map { it.text }
     }
 
     private suspend fun sendMessage(
+        model: String,
         systemPrompt: String,
         userContent: Any,
         maxTokens: Int
@@ -735,8 +738,12 @@ class ClaudeApiService(
                     connection.readTimeout = 60_000
 
                     val body = JSONObject().apply {
-                        put("model", sonnetModel)
-                        put("max_tokens", maxTokens)
+                        put("model", model)
+                        // Neuere Modelle denken immer mit (adaptive); Denk-Tokens zaehlen
+                        // gegen max_tokens. Geringer Aufwand + Puffer haelt die Antwort
+                        // schnell und verhindert abgeschnittene Texte.
+                        put("max_tokens", maxTokens + THINKING_HEADROOM_TOKENS)
+                        put("output_config", JSONObject().apply { put("effort", "low") })
                         put("system", systemPrompt)
                         put("messages", JSONArray().put(
                             JSONObject().apply {
@@ -760,8 +767,8 @@ class ClaudeApiService(
 
                     val responseBody = connection.inputStream.use { it.bufferedReader().readText() }
                     val json = JSONObject(responseBody)
-                    val content = json.getJSONArray("content")
-                    val text = content.getJSONObject(0).getString("text")
+                    val text = firstTextBlock(json)
+                        ?: return@withContext Result.failure(Exception("Keine Textantwort erhalten"))
 
                     Result.success(ApiReply(text, usageOf(json, "input_tokens"), usageOf(json, "output_tokens")))
                 } finally {
@@ -774,12 +781,13 @@ class ClaudeApiService(
 
     private suspend fun callClaudeWithThinking(kind: String, systemPrompt: String, userMessage: String): Result<String> {
         val started = System.currentTimeMillis()
-        val result = sendMessageWithThinking(systemPrompt, userMessage)
-        logCall(kind, opusModel, systemPrompt, userMessage, result, started)
+        val model = ClaudeModelResolver.resolve(opusModel, ClaudeModelResolver.FAMILY_OPUS, apiKey)
+        val result = sendMessageWithThinking(model, systemPrompt, userMessage)
+        logCall(kind, model, systemPrompt, userMessage, result, started)
         return result.map { it.text }
     }
 
-    private suspend fun sendMessageWithThinking(systemPrompt: String, userMessage: String): Result<ApiReply> =
+    private suspend fun sendMessageWithThinking(model: String, systemPrompt: String, userMessage: String): Result<ApiReply> =
         withContext(Dispatchers.IO) {
             val started = System.currentTimeMillis()
             var phase = "connect"
@@ -796,7 +804,7 @@ class ClaudeApiService(
                     connection.readTimeout = 120_000
 
                     val body = JSONObject().apply {
-                        put("model", opusModel)
+                        put("model", model)
                         put("max_tokens", 12000)
                         put("thinking", JSONObject().apply {
                             put("type", "adaptive")
@@ -827,20 +835,8 @@ class ClaudeApiService(
 
                     val responseBody = connection.inputStream.use { it.bufferedReader().readText() }
                     val json = JSONObject(responseBody)
-                    val content = json.getJSONArray("content")
-
-                    // Extended thinking returns multiple blocks: skip "thinking" blocks, find "text" block
-                    var resultText = ""
-                    for (i in 0 until content.length()) {
-                        val block = content.getJSONObject(i)
-                        if (block.getString("type") == "text") {
-                            resultText = block.getString("text")
-                            break
-                        }
-                    }
-                    if (resultText.isEmpty()) {
-                        return@withContext Result.failure(Exception("Keine Textantwort erhalten"))
-                    }
+                    val resultText = firstTextBlock(json)
+                        ?: return@withContext Result.failure(Exception("Keine Textantwort erhalten"))
 
                     Result.success(ApiReply(resultText, usageOf(json, "input_tokens"), usageOf(json, "output_tokens")))
                 } finally {
@@ -850,6 +846,18 @@ class ClaudeApiService(
                 Result.failure(diagnosticException(e, phase, started))
             }
         }
+
+    // Antworten koennen mit "thinking"-Bloecken beginnen: ersten Text-Block nehmen.
+    private fun firstTextBlock(json: JSONObject): String? {
+        val content = json.optJSONArray("content") ?: return null
+        for (i in 0 until content.length()) {
+            val block = content.getJSONObject(i)
+            if (block.optString("type") == "text") {
+                return block.optString("text").takeIf { it.isNotEmpty() }
+            }
+        }
+        return null
+    }
 
     private fun usageOf(json: JSONObject, key: String): Int =
         json.optJSONObject("usage")?.optInt(key, 0) ?: 0
@@ -892,6 +900,8 @@ class ClaudeApiService(
     }
 
     companion object {
+        private const val THINKING_HEADROOM_TOKENS = 4000
+
         /** Text-Inhalt fuers Log; Bilder werden durch [Bild] ersetzt, damit das Log klein bleibt. */
         fun describeUserContent(userContent: Any): String {
             if (userContent !is JSONArray) return userContent.toString()
